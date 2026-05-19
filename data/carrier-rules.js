@@ -1,25 +1,46 @@
 window.CARRIER_RULES = {
+  trainerCode: 'LAVA2026',
   carriers: [
-    { name: 'LAVA Preferred Mutual', appetite: 'Clean risks, strong prior insurance, preferred coverage limits', baseAuto: 1180, baseHome: 1425 },
-    { name: 'Harbor Standard Insurance', appetite: 'Standard market with flexible underwriting', baseAuto: 1320, baseHome: 1575 },
-    { name: 'Summit Select Casualty', appetite: 'Higher limits, bundled accounts, stable payment history', baseAuto: 1450, baseHome: 1680 },
-    { name: 'Pioneer Specialty Risk', appetite: 'Referral market for unusual exposures', baseAuto: 1710, baseHome: 1960 },
-    { name: 'Shield Nonstandard Program', appetite: 'Lapse, SR-22, higher violation risks subject to review', baseAuto: 2050, baseHome: 2280 }
+    { name: 'Preferred Mutual Training', tier: 'Preferred', autoBase: 1180, homeBase: 1320, appetite: 'Clean risks, continuous prior insurance, standard coverages' },
+    { name: 'ShieldPoint Training', tier: 'Standard', autoBase: 1420, homeBase: 1590, appetite: 'Average risks, minor violations, standard property updates' },
+    { name: 'Summit Casualty Training', tier: 'Referral', autoBase: 1760, homeBase: 1980, appetite: 'Mixed risks requiring underwriting review' },
+    { name: 'Harbor Specialty Training', tier: 'Non-Standard', autoBase: 2350, homeBase: 2510, appetite: 'Higher risk or specialty placement' }
   ],
-  endorsementRequirements: {
-    'Add Driver': ['Full driver name', 'Date of birth', 'License number/state', 'Years licensed', 'MVR/violations', 'Driver assignment and usage'],
-    'Remove Driver': ['Driver name', 'Reason for removal', 'Proof of other insurance or residency if required', 'Excluded driver form if applicable'],
-    'Add Vehicle': ['VIN', 'Year/make/model', 'Garaging address', 'Ownership/lienholder', 'Coverage selection', 'Photos or inspection if required'],
-    'Remove Vehicle': ['Vehicle removed', 'Reason', 'Plate surrender or proof sold if required', 'Confirm remaining vehicles and drivers'],
-    'Change Address': ['Old address', 'New mailing and garaging/risk address', 'Effective date', 'Rating territory impact', 'Mortgagee/lienholder update if needed'],
-    'Coverage Change': ['Current coverage', 'Requested coverage', 'Effective date', 'Premium impact', 'Signed rejection/selection forms if required'],
-    'Add Mortgagee / Loss Payee': ['Mortgagee/loss payee full name', 'Loan number', 'Mailing address', 'Clause type', 'Effective date'],
-    'Add Lienholder': ['Lienholder name', 'Loan/lease number', 'Address', 'Vehicle VIN', 'Comprehensive/collision required'],
-    'Correct Named Insured': ['Current name', 'Correct legal name', 'Reason for correction', 'Supporting ID/business document', 'Signature if required']
+  quoteSteps: {
+    auto: [
+      { key: 'account', label: 'Account Setup' },
+      { key: 'insured', label: 'Named Insured' },
+      { key: 'address', label: 'Addresses' },
+      { key: 'prior', label: 'Prior Insurance' },
+      { key: 'drivers', label: 'Drivers' },
+      { key: 'vehicles', label: 'Vehicles' },
+      { key: 'coverage', label: 'Coverage' },
+      { key: 'uw', label: 'Underwriting' },
+      { key: 'review', label: 'Review & Rate' }
+    ],
+    home: [
+      { key: 'account', label: 'Account Setup' },
+      { key: 'insured', label: 'Named Insured' },
+      { key: 'property', label: 'Property' },
+      { key: 'construction', label: 'Construction' },
+      { key: 'prior', label: 'Prior Insurance' },
+      { key: 'coverage', label: 'Coverage' },
+      { key: 'hazards', label: 'Risk Hazards' },
+      { key: 'uw', label: 'Underwriting' },
+      { key: 'review', label: 'Review & Rate' }
+    ]
   },
-  requiredQuoteFields: {
-    shared: ['product','insuredName','effectiveDate','continuousInsurance','currentlyInsured','documentsReceived','paymentReady'],
-    Auto: ['autoGaragingAddress','vin','vehicleYear','vehicleMake','vehicleModel','driverName','yearsLicensed','violations','biLimit','pdLimit','compDed','collDed'],
-    Home: ['propertyAddress','occupancy','yearBuilt','squareFeet','construction','roofYear','roofType','coverageA','liability','aopDed']
-  }
+  autoCoverages: {
+    bodilyInjury: ['25/50', '50/100', '100/300', '250/500', '500 CSL'],
+    propertyDamage: ['25,000', '50,000', '100,000', '250,000'],
+    uninsuredMotorist: ['Reject', '25/50', '50/100', '100/300', '250/500'],
+    medPay: ['Reject', '1,000', '2,000', '5,000', '10,000'],
+    deductibles: ['250', '500', '1,000', '2,500']
+  },
+  homeCoverages: {
+    dwelling: ['150000', '200000', '250000', '300000', '400000', '500000', '750000', '1000000'],
+    liability: ['100000', '300000', '500000', '1000000'],
+    deductible: ['500', '1000', '2500', '5000', '1% Wind/Hail', '2% Wind/Hail']
+  },
+  states: ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','IA','ID','IL','IN','KS','KY','LA','MA','MD','ME','MI','MN','MO','MS','MT','NC','ND','NE','NH','NJ','NM','NV','NY','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VA','VT','WA','WI','WV','WY']
 };
