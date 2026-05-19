@@ -9,7 +9,9 @@ A standalone, Netlify-ready carrier operations simulator for VA training.
 - Trainer code: `LAVA2026`
 - Dashboard
 - Policy Search by policy number or named insured
-- New Quote for Auto and Home
+- New Quote start screen with Auto or Home selection
+- Separate realistic carrier-style Auto quote questions
+- Separate realistic carrier-style Home quote questions
 - Auto Insurance ID Card Generator
 - Payment Center with receipt download
 - Endorsement Processing with document upload/download
@@ -75,7 +77,7 @@ window.LAVA_SUPABASE = {
 
 ## Training demo policies
 
-The portal starts empty until you create a quote/policy or click **Load Demo Policies**.
+The portal starts empty until you create a quote/policy or click **Load Demo Policies**. When you click **Start New Quote**, select **Auto Quote** or **Home Quote** first. Each line opens a separate carrier-style intake with blank fields and realistic underwriting questions.
 
 Demo search examples:
 
