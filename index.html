@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Standalone LAVA Carrier Portal Training Simulator for Personal Lines VA training." />
+  <title>LAVA Carrier Portal Pro | Training Simulator</title>
+  <link rel="icon" href="images/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/portal.css" />
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="modalRoot"></div>
+
+  <section id="loginScreen" class="login-screen">
+    <div class="login-brand-panel">
+      <div class="brand-lockup">
+        <img src="images/logo.svg" alt="LAVA logo" />
+        <div>
+          <strong>LAVA Carrier Portal Pro</strong>
+          <span>Personal Lines Quote Training System</span>
+        </div>
+      </div>
+
+      <div class="hero-card glass">
+        <p class="eyebrow">Simulation Environment • GitHub + Netlify Ready</p>
+        <h1>Train VAs on realistic carrier quoting, underwriting, and QA review.</h1>
+        <p class="hero-copy">This standalone portal replicates the workflow pattern of a carrier rater: login, intake, validation, risk scoring, referral handling, quote comparison, work queue, trainer review, and audit logs.</p>
+        <div class="hero-metrics">
+          <div><strong>Auto + Home</strong><span>Quote lines</span></div>
+          <div><strong>8 Steps</strong><span>Per workflow</span></div>
+          <div><strong>Local</strong><span>No backend needed</span></div>
+        </div>
+        <div class="security-strip">
+          <span>Training only</span>
+          <span>No real policies</span>
+          <span>No customer data required</span>
+        </div>
+      </div>
+    </div>
+
+    <form id="loginForm" class="login-panel" autocomplete="on">
+      <div class="login-badge">▦</div>
+      <p class="eyebrow">VA Access</p>
+      <h2>Open Training Portal</h2>
+      <p class="muted">Enter trainee information. Trainer/TL mode unlocks review and analytics screens.</p>
+
+      <label for="loginName">Full name <span>*</span></label>
+      <input id="loginName" name="loginName" type="text" required minlength="2" placeholder="Example: Maria Santos" />
+
+      <label for="loginEmail">Training email</label>
+      <input id="loginEmail" name="loginEmail" type="email" placeholder="name@lavatraining.com" />
+
+      <label for="loginTeam">Team / Batch</label>
+      <input id="loginTeam" name="loginTeam" type="text" placeholder="Example: PL Rater Batch 03" />
+
+      <label for="loginShift">Shift</label>
+      <select id="loginShift" name="loginShift">
+        <option>Training Shift</option>
+        <option>AM Shift</option>
+        <option>PM Shift</option>
+        <option>Night Shift</option>
+      </select>
+
+      <div class="role-grid" role="radiogroup" aria-label="Role selection">
+        <label class="role-card"><input type="radio" name="role" value="VA" checked /> <span>VA Trainee</span></label>
+        <label class="role-card"><input type="radio" name="role" value="Trainer" /> <span>Trainer / TL</span></label>
+      </div>
+
+      <div id="trainerCodeBox" class="hidden">
+        <label for="trainerCode">Trainer access code</label>
+        <input id="trainerCode" type="password" placeholder="Enter trainer code" />
+        <small class="muted">Default code: <b>LAVA2026</b></small>
+      </div>
+
+      <button class="primary-btn full" type="submit">Launch Portal</button>
+      <button class="ghost-btn full" type="button" id="demoLoginBtn">Use Demo Trainee</button>
+      <p class="fine-print">This is a training simulator. Do not enter real customer private information.</p>
+    </form>
+  </section>
+
+  <section id="portalShell" class="portal-shell hidden">
+    <aside class="sidebar">
+      <div class="side-brand">
+        <img src="images/logo.svg" alt="LAVA" />
+        <div><strong>LAVA Rater Pro</strong><span>Carrier Portal</span></div>
+      </div>
+      <nav id="mainNav" class="nav-list" aria-label="Main navigation">
+        <button data-view="dashboard" class="active">Command Center</button>
+        <button data-view="newQuote">New Business</button>
+        <button data-view="queue">Work Queue</button>
+        <button data-view="matrix">Carrier Matrix</button>
+        <button data-view="trainer">Trainer Review</button>
+        <button data-view="guide">SOP Guide</button>
+        <button data-view="admin">Admin Tools</button>
+      </nav>
+      <div class="session-card">
+        <span>Signed in as</span>
+        <strong id="sessionName">VA Trainee</strong>
+        <small id="sessionMeta">Training Session</small>
+      </div>
+      <div class="sidebar-note">
+        <b>Simulator Mode</b>
+        <span>Rates and eligibility are fictional for training purposes.</span>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div>
+          <p id="breadcrumb" class="breadcrumb">Command Center</p>
+          <h1 id="pageTitle">Carrier Training Command Center</h1>
+        </div>
+        <div class="top-actions">
+          <button id="themeToggle" class="icon-btn" type="button" title="Toggle theme">◐</button>
+          <button id="printBtn" class="secondary-btn" type="button">Print / Save PDF</button>
+          <button id="logoutBtn" class="danger-btn" type="button">Logout</button>
+        </div>
+      </header>
+
+      <section id="dashboardView" class="view active"></section>
+      <section id="newQuoteView" class="view"></section>
+      <section id="queueView" class="view"></section>
+      <section id="matrixView" class="view"></section>
+      <section id="trainerView" class="view"></section>
+      <section id="guideView" class="view"></section>
+      <section id="adminView" class="view"></section>
+    </main>
+  </section>
+
+  <script src="data/carriers.js"></script>
+  <script src="data/questions.js"></script>
+  <script src="js/rating-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
