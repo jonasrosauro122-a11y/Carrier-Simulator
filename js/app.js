@@ -11,7 +11,8 @@
     lastReceipt: null,
     lastEndorsement: null,
     lastCancellation: null,
-    lastRemarketing: null
+    lastRemarketing: null,
+    quoteLine: null
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -307,306 +308,606 @@
   }
 
   async function renderQuote() {
+    if (!state.quoteLine) {
+      $("#view").innerHTML = `
+        ${viewHead("Start Quote", "Select the line of business first. The portal will open the correct carrier-style question set for the trainee.", `
+          <button class="btn subtle" data-action="reset-quote">Clear Quote</button>
+        `)}
+        <section class="quote-picker-grid">
+          <article class="quote-line-card auto-card">
+            <div class="quote-line-icon">🚗</div>
+            <p class="eyebrow">Personal Lines</p>
+            <h2>Start Auto Quote</h2>
+            <p class="muted">Use this for private passenger auto new business, renewal remarketing, or policy replacement quoting.</p>
+            <div class="mini-checklist">
+              <span>Applicant and prior insurance</span>
+              <span>Driver and household details</span>
+              <span>Vehicle, VIN and garaging</span>
+              <span>Coverage, discounts and underwriting</span>
+            </div>
+            <button class="btn primary full" data-action="select-quote-line" data-line="Auto">Select Auto Quote</button>
+          </article>
+          <article class="quote-line-card home-card">
+            <div class="quote-line-icon">🏠</div>
+            <p class="eyebrow">Personal Lines</p>
+            <h2>Start Home Quote</h2>
+            <p class="muted">Use this for homeowners, condo, renters, dwelling fire, or package-policy training workflows.</p>
+            <div class="mini-checklist">
+              <span>Named insured and property location</span>
+              <span>Home characteristics and updates</span>
+              <span>Coverage, deductibles and mortgagee</span>
+              <span>Hazards, claims and underwriting notes</span>
+            </div>
+            <button class="btn primary full" data-action="select-quote-line" data-line="Home">Select Home Quote</button>
+          </article>
+        </section>
+        <section class="card soft" style="margin-top:1rem">
+          <h3>Carrier Training Reminder</h3>
+          <p class="muted">Do not enter real customer information. Use dummy training data only. Every saved quote can be rated, bound into a dummy policy, searched, used for payments, ID cards, endorsements, cancellations, and remarketing practice.</p>
+        </section>
+      `;
+      return;
+    }
+
+    const type = state.quoteLine;
+    const title = type === "Auto" ? "Personal Auto Quote" : "Homeowners Quote";
+    const subtitle = type === "Auto"
+      ? "Carrier-style auto intake with applicant, driver, vehicle, coverage, discount and underwriting questions."
+      : "Carrier-style home intake with applicant, property, coverage, mortgagee, hazard and underwriting questions.";
+
     $("#view").innerHTML = `
-      ${viewHead("New Quote", "Blank carrier-style intake. No customer information is pre-filled.", `
+      ${viewHead(title, subtitle, `
+        <button class="btn ghost" data-action="change-quote-line">Change Line</button>
         <button class="btn subtle" data-action="reset-quote">Clear Quote</button>
       `)}
-      <form id="quote-form" class="card">
-        <div class="stepper">
-          <span class="step-pill active">Account</span>
-          <span class="step-pill">Risk</span>
-          <span class="step-pill">Coverage</span>
-          <span class="step-pill">Underwriting</span>
-          <span class="step-pill">Rate / Bind</span>
-        </div>
-
-        <div class="form-section">
-          <h3>1. Account Setup</h3>
-          <div class="form-grid">
-            <label class="span-4">Line of Business
-              <select name="policy_type" id="quote-type" required>
-                <option value="Auto">Personal Auto</option>
-                <option value="Home">Homeowners</option>
-              </select>
-            </label>
-            <label class="span-4">Requested Effective Date
-              <input name="effective_date" type="date" required />
-            </label>
-            <label class="span-4">Producer / Agency
-              <input name="agency" placeholder="Agency name" required />
-            </label>
-            <label class="span-4">Named Insured
-              <input name="named_insured" placeholder="First Last or business/trust name" required />
-            </label>
-            <label class="span-4">Email
-              <input name="email" type="email" placeholder="insured@email.com" />
-            </label>
-            <label class="span-4">Phone
-              <input name="phone" placeholder="(555) 555-5555" />
-            </label>
-            <label class="span-8">Mailing Address
-              <input name="mailing_address" placeholder="Street, City, State ZIP" required />
-            </label>
-            <label class="span-4">Prior Carrier
-              <input name="prior_carrier" placeholder="Current/prior insurance carrier" />
-            </label>
-            <label class="span-4">Prior Expiration
-              <input name="prior_expiration" type="date" />
-            </label>
-            <label class="span-4">Years Continuously Insured
-              <select name="continuous_insurance">
-                <option value="0">No prior / lapse</option>
-                <option value="1">Less than 1 year</option>
-                <option value="3">1-3 years</option>
-                <option value="5">3+ years</option>
-              </select>
-            </label>
-            <label class="span-4">Quote Source
-              <select name="source">
-                <option>Agency Request</option>
-                <option>Phone Inquiry</option>
-                <option>Email Request</option>
-                <option>Renewal Remarketing</option>
-              </select>
-            </label>
+      <form id="quote-form" class="card carrier-form">
+        <input type="hidden" name="policy_type" value="${esc(type)}" />
+        <div class="quote-context-banner">
+          <div>
+            <p class="eyebrow">Selected Line</p>
+            <h2>${type === "Auto" ? "Personal Auto" : "Homeowners"}</h2>
           </div>
+          <span class="status-pill open">New Business Quote</span>
         </div>
-
-        <div id="auto-risk" class="form-section">
-          <h3>2A. Auto Risk Details</h3>
-          <div class="form-grid">
-            <label class="span-4">Garaging Address
-              <input name="garaging_address" placeholder="Street, City, State ZIP" />
-            </label>
-            <label class="span-2">Vehicle Year
-              <input name="vehicle_year" type="number" min="1980" max="2035" />
-            </label>
-            <label class="span-3">Vehicle Make
-              <input name="vehicle_make" placeholder="Toyota" />
-            </label>
-            <label class="span-3">Vehicle Model
-              <input name="vehicle_model" placeholder="Camry" />
-            </label>
-            <label class="span-4">VIN
-              <input name="vin" maxlength="17" placeholder="17-character VIN" />
-            </label>
-            <label class="span-4">Vehicle Use
-              <select name="vehicle_use">
-                <option>Commute</option>
-                <option>Pleasure</option>
-                <option>Business</option>
-                <option>Rideshare / Delivery</option>
-              </select>
-            </label>
-            <label class="span-4">Annual Mileage
-              <input name="annual_mileage" type="number" min="0" placeholder="12000" />
-            </label>
-            <label class="span-4">Driver Name
-              <input name="driver_name" placeholder="Primary driver" />
-            </label>
-            <label class="span-2">DOB
-              <input name="driver_dob" type="date" />
-            </label>
-            <label class="span-2">License State
-              <input name="license_state" maxlength="2" placeholder="CA" />
-            </label>
-            <label class="span-2">Years Licensed
-              <input name="years_licensed" type="number" min="0" />
-            </label>
-            <label class="span-2">Violations
-              <input name="violations" type="number" min="0" value="0" />
-            </label>
-            <label class="span-2">At-Fault Claims
-              <input name="auto_claims" type="number" min="0" value="0" />
-            </label>
-          </div>
-        </div>
-
-        <div id="home-risk" class="form-section hidden">
-          <h3>2B. Home Risk Details</h3>
-          <div class="form-grid">
-            <label class="span-8">Property Location
-              <input name="property_address" placeholder="Street, City, State ZIP" />
-            </label>
-            <label class="span-4">Occupancy
-              <select name="occupancy">
-                <option>Primary</option>
-                <option>Secondary</option>
-                <option>Tenant Occupied</option>
-                <option>Vacant</option>
-              </select>
-            </label>
-            <label class="span-3">Year Built
-              <input name="year_built" type="number" min="1800" max="2035" />
-            </label>
-            <label class="span-3">Roof Year
-              <input name="roof_year" type="number" min="1800" max="2035" />
-            </label>
-            <label class="span-3">Construction
-              <select name="construction">
-                <option>Frame</option>
-                <option>Masonry</option>
-                <option>Brick Veneer</option>
-                <option>Manufactured</option>
-              </select>
-            </label>
-            <label class="span-3">Protection Class
-              <select name="protection_class">
-                <option>1-3</option>
-                <option>4-6</option>
-                <option>7-8</option>
-                <option>9-10</option>
-              </select>
-            </label>
-            <label class="span-4">Dwelling Coverage A
-              <input name="coverage_a" type="number" min="0" placeholder="450000" />
-            </label>
-            <label class="span-4">Home Claims Last 5 Years
-              <input name="home_claims" type="number" min="0" value="0" />
-            </label>
-            <label class="span-4">Distance to Coast / Brush
-              <select name="cat_exposure">
-                <option>Low</option>
-                <option>Moderate</option>
-                <option>High</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h3>3. Coverage Selection</h3>
-          <div class="form-grid">
-            <label class="span-3 auto-only">BI Limit
-              <select name="bi_limit"><option>State Minimum</option><option>50/100</option><option>100/300</option><option>250/500</option></select>
-            </label>
-            <label class="span-3 auto-only">PD Limit
-              <select name="pd_limit"><option>25,000</option><option>50,000</option><option>100,000</option></select>
-            </label>
-            <label class="span-3 auto-only">Comprehensive Deductible
-              <select name="comp_ded"><option>None</option><option>250</option><option>500</option><option>1000</option></select>
-            </label>
-            <label class="span-3 auto-only">Collision Deductible
-              <select name="coll_ded"><option>None</option><option>250</option><option>500</option><option>1000</option></select>
-            </label>
-            <label class="span-3 home-only hidden">HO Form
-              <select name="home_form"><option>HO3</option><option>HO5</option><option>HO6</option><option>DP3</option></select>
-            </label>
-            <label class="span-3 home-only hidden">Deductible
-              <select name="home_ded"><option>1000</option><option>2500</option><option>5000</option></select>
-            </label>
-            <label class="span-3 home-only hidden">Water Backup
-              <select name="water_backup"><option>No</option><option>5,000</option><option>10,000</option><option>25,000</option></select>
-            </label>
-            <label class="span-3 home-only hidden">Personal Property
-              <select name="contents"><option>50%</option><option>70%</option><option>Replacement Cost</option></select>
-            </label>
-            <label class="span-4">Paperless Discount
-              <select name="paperless"><option>Yes</option><option>No</option></select>
-            </label>
-            <label class="span-4">Autopay Discount
-              <select name="autopay"><option>Yes</option><option>No</option></select>
-            </label>
-            <label class="span-4">Bundle Opportunity
-              <select name="bundle"><option>No</option><option>Auto + Home</option><option>Umbrella</option></select>
-            </label>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h3>4. Underwriting Questions</h3>
-          <div class="form-grid">
-            <label class="span-4">Any lapse in coverage?
-              <select name="lapse"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-4">Any prior carrier cancellation/non-renewal?
-              <select name="prior_cancel"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-4">Any open claims?
-              <select name="open_claims"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-4 auto-only">Any excluded drivers needed?
-              <select name="excluded_driver"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-4 auto-only">Rideshare, delivery, or commercial use?
-              <select name="commercial_use"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-4 home-only hidden">Any trampoline, pool, or animal exposure?
-              <select name="liability_hazard"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-4 home-only hidden">Any unrepaired damage or vacancy?
-              <select name="property_condition"><option>No</option><option>Yes</option></select>
-            </label>
-            <label class="span-12">Underwriter Notes / Remark
-              <textarea name="uw_notes" placeholder="Document assumptions, missing items, coverage discussion, and reason for referral if applicable."></textarea>
-            </label>
-          </div>
-        </div>
-
-        <div class="view-actions">
+        ${type === "Auto" ? autoQuoteQuestions() : homeQuoteQuestions()}
+        <div class="quote-action-bar">
           <button class="btn primary" type="submit">Rate Quote</button>
           <button class="btn success hidden" type="button" id="bind-quote-btn" data-action="bind-quote">Bind / Create Policy</button>
+          <button class="btn ghost" type="button" data-action="change-quote-line">Back to Line Selection</button>
         </div>
       </form>
       <section id="quote-output" style="margin-top:1rem"></section>
     `;
+  }
 
-    $("#quote-type").addEventListener("change", syncQuoteType);
-    syncQuoteType();
+  function yesNo(name, label, span = 4) {
+    return `<label class="span-${span}">${label}
+      <select name="${esc(name)}">
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+      </select>
+    </label>`;
+  }
+
+  function autoQuoteQuestions() {
+    return `
+      <div class="stepper realistic">
+        <span class="step-pill active">Account</span>
+        <span class="step-pill active">Prior Insurance</span>
+        <span class="step-pill active">Drivers</span>
+        <span class="step-pill active">Vehicles</span>
+        <span class="step-pill active">Coverage</span>
+        <span class="step-pill active">UW Review</span>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>01</span><div><h3>Account Setup</h3><p>These questions establish the quote shell, agency source, and requested policy term.</p></div></div>
+        <div class="form-grid">
+          <label class="span-3">Transaction Type
+            <select name="transaction_type"><option>New Business</option><option>Rewrite</option><option>Renewal Remarketing</option><option>Quote Comparison Only</option></select>
+          </label>
+          <label class="span-3">Requested Effective Date
+            <input name="effective_date" type="date" required />
+          </label>
+          <label class="span-3">Producer / Agency
+            <input name="agency" placeholder="Agency name" required />
+          </label>
+          <label class="span-3">Quote Source
+            <select name="source"><option>Inbound Call</option><option>Email Request</option><option>Agency Request</option><option>Renewal Review</option><option>Referral</option></select>
+          </label>
+          <label class="span-4">Named Insured
+            <input name="named_insured" placeholder="Full legal name" required />
+          </label>
+          <label class="span-2">Date of Birth
+            <input name="insured_dob" type="date" />
+          </label>
+          <label class="span-3">Email
+            <input name="email" type="email" placeholder="insured@email.com" />
+          </label>
+          <label class="span-3">Phone
+            <input name="phone" placeholder="(555) 555-5555" />
+          </label>
+          <label class="span-8">Mailing Address
+            <input name="mailing_address" placeholder="Street, City, State ZIP" required />
+          </label>
+          <label class="span-4">Residence Status
+            <select name="residence_status"><option>Own</option><option>Rent</option><option>Live with family</option><option>Other</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>02</span><div><h3>Prior Insurance and Eligibility</h3><p>Carriers normally ask these questions to confirm continuous coverage and prior carrier history.</p></div></div>
+        <div class="form-grid">
+          <label class="span-3">Current / Prior Carrier
+            <input name="prior_carrier" placeholder="Carrier name" />
+          </label>
+          <label class="span-3">Prior Policy Number
+            <input name="prior_policy_number" placeholder="Policy number" />
+          </label>
+          <label class="span-3">Prior Expiration Date
+            <input name="prior_expiration" type="date" />
+          </label>
+          <label class="span-3">Years Continuously Insured
+            <select name="continuous_insurance"><option value="0">No prior / lapse</option><option value="1">Less than 1 year</option><option value="3">1-3 years</option><option value="5">3+ years</option></select>
+          </label>
+          ${yesNo("lapse", "Any lapse in coverage?", 3)}
+          ${yesNo("prior_cancel", "Any prior cancellation or non-renewal?", 3)}
+          ${yesNo("open_claims", "Any open claims?", 3)}
+          <label class="span-3">Current Payment Status
+            <select name="prior_payment_status"><option>Paid current</option><option>Past due</option><option>Cancelled for non-payment</option><option>Unknown</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>03</span><div><h3>Drivers and Household</h3><p>Capture all operators and household exposures. This section trains VAs to ask follow-up questions.</p></div></div>
+        <div class="form-grid">
+          <label class="span-4">Primary Driver Full Name
+            <input name="driver_name" placeholder="Primary driver" required />
+          </label>
+          <label class="span-2">Driver DOB
+            <input name="driver_dob" type="date" required />
+          </label>
+          <label class="span-2">License State
+            <input name="license_state" maxlength="2" placeholder="CA" required />
+          </label>
+          <label class="span-2">Years Licensed
+            <input name="years_licensed" type="number" min="0" placeholder="5" />
+          </label>
+          <label class="span-2">License Status
+            <select name="license_status"><option>Valid</option><option>Permit</option><option>Suspended</option><option>International</option></select>
+          </label>
+          <label class="span-3">Accidents / At-Fault Claims Last 5 Years
+            <input name="auto_claims" type="number" min="0" placeholder="0" />
+          </label>
+          <label class="span-3">Moving Violations Last 5 Years
+            <input name="violations" type="number" min="0" placeholder="0" />
+          </label>
+          <label class="span-3">Major Violations / DUI
+            <input name="major_violations" type="number" min="0" placeholder="0" />
+          </label>
+          ${yesNo("sr22", "SR-22 / FR-44 filing required?", 3)}
+          ${yesNo("excluded_driver", "Any excluded drivers needed?", 3)}
+          ${yesNo("undisclosed_household", "Any household member not listed?", 3)}
+          ${yesNo("student_away", "Student away at school?", 3)}
+          <label class="span-12">Additional Drivers / Household Notes
+            <textarea name="driver_notes" placeholder="List additional drivers, household members, exclusions, relationship to insured, and any missing license details."></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>04</span><div><h3>Vehicle, VIN and Garaging</h3><p>Carrier portals usually require exact VIN, garaging location, vehicle use, mileage and ownership.</p></div></div>
+        <div class="form-grid">
+          <label class="span-8">Garaging Address
+            <input name="garaging_address" placeholder="Street, City, State ZIP" required />
+          </label>
+          <label class="span-4">Garaging Same as Mailing?
+            <select name="garaging_same"><option>Yes</option><option>No</option></select>
+          </label>
+          <label class="span-2">Vehicle Year
+            <input name="vehicle_year" type="number" min="1980" max="2035" placeholder="2022" required />
+          </label>
+          <label class="span-3">Vehicle Make
+            <input name="vehicle_make" placeholder="Toyota" required />
+          </label>
+          <label class="span-3">Vehicle Model
+            <input name="vehicle_model" placeholder="Camry" required />
+          </label>
+          <label class="span-4">VIN
+            <input name="vin" maxlength="17" placeholder="17-character VIN" required />
+          </label>
+          <label class="span-3">Ownership
+            <select name="ownership"><option>Owned</option><option>Financed</option><option>Leased</option></select>
+          </label>
+          <label class="span-3">Vehicle Use
+            <select name="vehicle_use"><option>Commute</option><option>Pleasure</option><option>Business</option><option>Rideshare / Delivery</option></select>
+          </label>
+          <label class="span-3">One-Way Commute Miles
+            <input name="commute_miles" type="number" min="0" placeholder="12" />
+          </label>
+          <label class="span-3">Annual Mileage
+            <input name="annual_mileage" type="number" min="0" placeholder="12000" />
+          </label>
+          ${yesNo("anti_theft", "Anti-theft or tracking device?", 3)}
+          ${yesNo("modified_vehicle", "Any custom equipment or modifications?", 3)}
+          ${yesNo("salvage_title", "Salvage/rebuilt title?", 3)}
+          ${yesNo("loan_lease", "Loan/lease payoff requested?", 3)}
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>05</span><div><h3>Coverages, Deductibles and Discounts</h3><p>Select limits the same way a VA would in a carrier rater before presenting quote options.</p></div></div>
+        <div class="form-grid">
+          <label class="span-3">Bodily Injury Limit
+            <select name="bi_limit"><option>State Minimum</option><option>25/50</option><option>50/100</option><option>100/300</option><option>250/500</option></select>
+          </label>
+          <label class="span-3">Property Damage Limit
+            <select name="pd_limit"><option>25,000</option><option>50,000</option><option>100,000</option><option>250,000</option></select>
+          </label>
+          <label class="span-3">UM / UIM
+            <select name="um_uim"><option>Reject / Not Selected</option><option>Match BI</option><option>Lower Than BI</option><option>State Minimum</option></select>
+          </label>
+          <label class="span-3">Medical Payments / PIP
+            <select name="medpay"><option>None</option><option>1,000</option><option>5,000</option><option>10,000</option><option>State PIP</option></select>
+          </label>
+          <label class="span-3">Comprehensive Deductible
+            <select name="comp_ded"><option>None</option><option>250</option><option>500</option><option>1000</option><option>2500</option></select>
+          </label>
+          <label class="span-3">Collision Deductible
+            <select name="coll_ded"><option>None</option><option>250</option><option>500</option><option>1000</option><option>2500</option></select>
+          </label>
+          <label class="span-3">Rental Reimbursement
+            <select name="rental"><option>No</option><option>30/900</option><option>40/1200</option><option>50/1500</option></select>
+          </label>
+          <label class="span-3">Roadside Assistance
+            <select name="roadside"><option>No</option><option>Yes</option></select>
+          </label>
+          <label class="span-3">Paperless Discount
+            <select name="paperless"><option>Yes</option><option>No</option></select>
+          </label>
+          <label class="span-3">Autopay Discount
+            <select name="autopay"><option>Yes</option><option>No</option></select>
+          </label>
+          <label class="span-3">Bundle Opportunity
+            <select name="bundle"><option>No</option><option>Auto + Home</option><option>Umbrella</option></select>
+          </label>
+          <label class="span-3">Telematics / Safe Driver Program
+            <select name="telematics"><option>No</option><option>Yes</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>06</span><div><h3>Underwriting Review and Required Documents</h3><p>Use this section to determine referral, decline, missing documents and notes.</p></div></div>
+        <div class="form-grid">
+          ${yesNo("commercial_use", "Any commercial, delivery, or rideshare exposure?", 4)}
+          ${yesNo("out_of_state_garaging", "Vehicle garaged out of state?", 4)}
+          ${yesNo("not_registered_insured", "Vehicle not registered to insured?", 4)}
+          <label class="span-4">Document Needed
+            <select name="required_doc"><option>None</option><option>Prior declarations page</option><option>Driver license copy</option><option>VIN verification</option><option>Signed exclusion form</option></select>
+          </label>
+          <label class="span-8">Underwriter Notes / Rating Remark
+            <textarea name="uw_notes" placeholder="Document assumptions, missing info, coverage discussion, and reason for referral if applicable."></textarea>
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
+  function homeQuoteQuestions() {
+    return `
+      <div class="stepper realistic">
+        <span class="step-pill active">Account</span>
+        <span class="step-pill active">Property</span>
+        <span class="step-pill active">Updates</span>
+        <span class="step-pill active">Coverage</span>
+        <span class="step-pill active">Hazards</span>
+        <span class="step-pill active">UW Review</span>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>01</span><div><h3>Account and Applicant</h3><p>Start with the named insured and transaction information before property rating.</p></div></div>
+        <div class="form-grid">
+          <label class="span-3">Transaction Type
+            <select name="transaction_type"><option>New Business</option><option>Rewrite</option><option>Renewal Remarketing</option><option>Quote Comparison Only</option></select>
+          </label>
+          <label class="span-3">Requested Effective Date
+            <input name="effective_date" type="date" required />
+          </label>
+          <label class="span-3">Producer / Agency
+            <input name="agency" placeholder="Agency name" required />
+          </label>
+          <label class="span-3">Quote Source
+            <select name="source"><option>Inbound Call</option><option>Email Request</option><option>Agency Request</option><option>Renewal Review</option><option>Referral</option></select>
+          </label>
+          <label class="span-4">Named Insured
+            <input name="named_insured" placeholder="Full legal name or trust" required />
+          </label>
+          <label class="span-4">Email
+            <input name="email" type="email" placeholder="insured@email.com" />
+          </label>
+          <label class="span-4">Phone
+            <input name="phone" placeholder="(555) 555-5555" />
+          </label>
+          <label class="span-8">Mailing Address
+            <input name="mailing_address" placeholder="Street, City, State ZIP" required />
+          </label>
+          <label class="span-4">Applicant Type
+            <select name="applicant_type"><option>Individual</option><option>Joint insureds</option><option>Trust</option><option>LLC / Estate</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>02</span><div><h3>Property Location and Occupancy</h3><p>Carrier portals require exact risk address, occupancy, ownership and usage.</p></div></div>
+        <div class="form-grid">
+          <label class="span-8">Property Location
+            <input name="property_address" placeholder="Street, City, State ZIP" required />
+          </label>
+          <label class="span-4">Property Same as Mailing?
+            <select name="property_same"><option>Yes</option><option>No</option></select>
+          </label>
+          <label class="span-3">Policy Form
+            <select name="home_form"><option>HO3</option><option>HO5</option><option>HO6 Condo</option><option>HO4 Renters</option><option>DP3 Dwelling Fire</option></select>
+          </label>
+          <label class="span-3">Occupancy
+            <select name="occupancy"><option>Primary</option><option>Secondary</option><option>Tenant Occupied</option><option>Seasonal</option><option>Vacant</option></select>
+          </label>
+          <label class="span-3">Ownership
+            <select name="home_ownership"><option>Own</option><option>Mortgage</option><option>Rent</option><option>Trust / Estate</option></select>
+          </label>
+          <label class="span-3">Purchase Closing Date
+            <input name="closing_date" type="date" />
+          </label>
+          ${yesNo("short_term_rental", "Short-term rental / Airbnb exposure?", 4)}
+          ${yesNo("business_on_premises", "Business operated from the home?", 4)}
+          ${yesNo("vacant_unoccupied", "Vacant or unoccupied over 30 days?", 4)}
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>03</span><div><h3>Home Characteristics and Protection</h3><p>These details affect eligibility, replacement cost and inspection requirements.</p></div></div>
+        <div class="form-grid">
+          <label class="span-2">Year Built
+            <input name="year_built" type="number" min="1800" max="2035" placeholder="2005" required />
+          </label>
+          <label class="span-2">Square Feet
+            <input name="sq_ft" type="number" min="0" placeholder="2100" />
+          </label>
+          <label class="span-2">Stories
+            <select name="stories"><option>1</option><option>1.5</option><option>2</option><option>3+</option></select>
+          </label>
+          <label class="span-3">Construction Type
+            <select name="construction"><option>Frame</option><option>Masonry</option><option>Brick Veneer</option><option>Stucco</option><option>Manufactured</option><option>Log</option></select>
+          </label>
+          <label class="span-3">Foundation
+            <select name="foundation"><option>Slab</option><option>Crawlspace</option><option>Basement</option><option>Pier and Beam</option></select>
+          </label>
+          <label class="span-3">Roof Year
+            <input name="roof_year" type="number" min="1800" max="2035" placeholder="2020" required />
+          </label>
+          <label class="span-3">Roof Type
+            <select name="roof_type"><option>Composition Shingle</option><option>Tile</option><option>Metal</option><option>Wood Shake</option><option>Flat</option></select>
+          </label>
+          <label class="span-3">Protection Class
+            <select name="protection_class"><option>1-3</option><option>4-6</option><option>7-8</option><option>9-10</option></select>
+          </label>
+          <label class="span-3">Distance to Hydrant / Fire Station
+            <select name="fire_distance"><option>Within 1 mile</option><option>1-5 miles</option><option>Over 5 miles</option><option>Unknown</option></select>
+          </label>
+          <label class="span-3">Electrical Updated
+            <select name="electrical_update"><option>Unknown</option><option>Within 10 years</option><option>11-20 years</option><option>Over 20 years</option></select>
+          </label>
+          <label class="span-3">Plumbing Updated
+            <select name="plumbing_update"><option>Unknown</option><option>Within 10 years</option><option>11-20 years</option><option>Over 20 years</option></select>
+          </label>
+          <label class="span-3">HVAC Updated
+            <select name="hvac_update"><option>Unknown</option><option>Within 10 years</option><option>11-20 years</option><option>Over 20 years</option></select>
+          </label>
+          <label class="span-3">Heating Type
+            <select name="heating_type"><option>Central</option><option>Heat Pump</option><option>Electric Baseboard</option><option>Wood Stove</option><option>Other</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>04</span><div><h3>Coverage, Deductibles and Mortgagee</h3><p>Use this like a real coverage screen before rating.</p></div></div>
+        <div class="form-grid">
+          <label class="span-3">Dwelling Coverage A
+            <input name="coverage_a" type="number" min="0" placeholder="450000" required />
+          </label>
+          <label class="span-3">Other Structures
+            <select name="other_structures"><option>10%</option><option>20%</option><option>25%</option><option>Custom</option></select>
+          </label>
+          <label class="span-3">Personal Property
+            <select name="contents"><option>50%</option><option>70%</option><option>Replacement Cost</option><option>Actual Cash Value</option></select>
+          </label>
+          <label class="span-3">Loss of Use
+            <select name="loss_use"><option>20%</option><option>30%</option><option>40%</option><option>Actual Loss Sustained</option></select>
+          </label>
+          <label class="span-3">Deductible
+            <select name="home_ded"><option>1000</option><option>2500</option><option>5000</option><option>1%</option><option>2%</option></select>
+          </label>
+          <label class="span-3">Wind / Hail Deductible
+            <select name="wind_ded"><option>Included</option><option>1%</option><option>2%</option><option>5%</option><option>Excluded</option></select>
+          </label>
+          <label class="span-3">Water Backup
+            <select name="water_backup"><option>No</option><option>5,000</option><option>10,000</option><option>25,000</option><option>50,000</option></select>
+          </label>
+          <label class="span-3">Personal Liability
+            <select name="liability_limit"><option>100,000</option><option>300,000</option><option>500,000</option><option>1,000,000</option></select>
+          </label>
+          <label class="span-4">Mortgagee Name
+            <input name="mortgagee_name" placeholder="Mortgage company" />
+          </label>
+          <label class="span-4">Loan Number
+            <input name="loan_number" placeholder="Loan number" />
+          </label>
+          <label class="span-4">Mortgagee Clause / Address
+            <input name="mortgagee_address" placeholder="ISAOA/ATIMA clause or address" />
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>05</span><div><h3>Prior Insurance, Claims and Discounts</h3><p>Continuous insurance and loss history are common carrier eligibility questions.</p></div></div>
+        <div class="form-grid">
+          <label class="span-3">Current / Prior Carrier
+            <input name="prior_carrier" placeholder="Carrier name" />
+          </label>
+          <label class="span-3">Prior Policy Number
+            <input name="prior_policy_number" placeholder="Policy number" />
+          </label>
+          <label class="span-3">Prior Expiration Date
+            <input name="prior_expiration" type="date" />
+          </label>
+          <label class="span-3">Years Continuously Insured
+            <select name="continuous_insurance"><option value="0">No prior / lapse</option><option value="1">Less than 1 year</option><option value="3">1-3 years</option><option value="5">3+ years</option></select>
+          </label>
+          <label class="span-3">Claims Last 5 Years
+            <input name="home_claims" type="number" min="0" placeholder="0" />
+          </label>
+          ${yesNo("lapse", "Any lapse in coverage?", 3)}
+          ${yesNo("prior_cancel", "Any prior cancellation/non-renewal?", 3)}
+          ${yesNo("open_claims", "Any open claims?", 3)}
+          <label class="span-3">Protective Devices
+            <select name="protective_devices"><option>None</option><option>Smoke alarm</option><option>Central alarm</option><option>Fire and burglar alarm</option><option>Smart home devices</option></select>
+          </label>
+          <label class="span-3">Paperless Discount
+            <select name="paperless"><option>Yes</option><option>No</option></select>
+          </label>
+          <label class="span-3">Autopay Discount
+            <select name="autopay"><option>Yes</option><option>No</option></select>
+          </label>
+          <label class="span-3">Bundle Opportunity
+            <select name="bundle"><option>No</option><option>Auto + Home</option><option>Umbrella</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section carrier-section">
+        <div class="section-title"><span>06</span><div><h3>Hazards, Catastrophe Exposure and Underwriting</h3><p>These questions decide referral, inspection or decline conditions.</p></div></div>
+        <div class="form-grid">
+          <label class="span-4">Coastal / Brush / Wildfire Exposure
+            <select name="cat_exposure"><option>Low</option><option>Moderate</option><option>High</option></select>
+          </label>
+          ${yesNo("pool", "Swimming pool on premises?", 4)}
+          ${yesNo("trampoline", "Trampoline on premises?", 4)}
+          ${yesNo("animals", "Dogs/animals with bite history?", 4)}
+          ${yesNo("wood_stove", "Wood stove or solid fuel heating?", 4)}
+          ${yesNo("liability_hazard", "Any liability hazard?", 4)}
+          ${yesNo("property_condition", "Unrepaired damage, active leak, or poor condition?", 4)}
+          ${yesNo("flood_zone", "Located in special flood hazard area?", 4)}
+          <label class="span-4">Document Needed
+            <select name="required_doc"><option>None</option><option>Prior declarations page</option><option>Mortgagee clause</option><option>Roof photos</option><option>4-point inspection</option><option>Wind mitigation</option></select>
+          </label>
+          <label class="span-8">Underwriter Notes / Rating Remark
+            <textarea name="uw_notes" placeholder="Document assumptions, hazards, missing items, mortgagee concerns, and reason for referral if applicable."></textarea>
+          </label>
+        </div>
+      </div>
+    `;
   }
 
   function syncQuoteType() {
-    const type = $("#quote-type")?.value || "Auto";
-    $("#auto-risk")?.classList.toggle("hidden", type !== "Auto");
-    $("#home-risk")?.classList.toggle("hidden", type !== "Home");
-    $$(".auto-only").forEach((el) => el.classList.toggle("hidden", type !== "Auto"));
-    $$(".home-only").forEach((el) => el.classList.toggle("hidden", type !== "Home"));
+    // Retained for backwards compatibility with older saved browser sessions.
   }
 
   function rateQuote(data) {
     const type = data.policy_type;
-    let premium = type === "Auto" ? 1180 : 980;
-    let risk = 25;
+    let premium = type === "Auto" ? 1240 : 1125;
+    let risk = 22;
     const flags = [];
 
-    if (data.continuous_insurance === "0" || data.lapse === "Yes") { premium += 275; risk += 18; flags.push("Coverage lapse requires underwriting review."); }
-    if (data.prior_cancel === "Yes") { premium += 350; risk += 22; flags.push("Prior cancellation/non-renewal disclosed."); }
-    if (data.open_claims === "Yes") { premium += 450; risk += 25; flags.push("Open claims require referral."); }
+    if (data.continuous_insurance === "0" || data.lapse === "Yes") { premium += 295; risk += 18; flags.push("Coverage lapse requires underwriting review."); }
+    if (data.prior_cancel === "Yes") { premium += 375; risk += 22; flags.push("Prior cancellation/non-renewal disclosed."); }
+    if (data.open_claims === "Yes") { premium += 475; risk += 25; flags.push("Open claim must be referred before binding."); }
+    if (data.required_doc && data.required_doc !== "None") { risk += 5; flags.push(`Required document: ${data.required_doc}.`); }
 
     if (type === "Auto") {
       const vehicleAge = Number(new Date().getFullYear()) - Number(data.vehicle_year || new Date().getFullYear());
       const mileage = Number(data.annual_mileage || 0);
+      const commute = Number(data.commute_miles || 0);
       const violations = Number(data.violations || 0);
+      const majorViolations = Number(data.major_violations || 0);
       const claims = Number(data.auto_claims || 0);
-      if (vehicleAge <= 3) premium += 250;
-      if (mileage > 15000) { premium += 160; risk += 7; flags.push("High annual mileage."); }
-      if (data.vehicle_use === "Business") { premium += 300; risk += 12; flags.push("Business use disclosed."); }
-      if (data.vehicle_use === "Rideshare / Delivery" || data.commercial_use === "Yes") { premium += 600; risk += 40; flags.push("Rideshare/delivery use may be ineligible."); }
+      const yearsLicensed = Number(data.years_licensed || 0);
+
+      if (vehicleAge <= 3) premium += 255;
+      if (vehicleAge > 15) { premium += 95; risk += 5; flags.push("Older vehicle may need photo inspection for physical damage coverage."); }
+      if (mileage > 15000) { premium += 165; risk += 7; flags.push("High annual mileage."); }
+      if (commute > 35) { premium += 110; risk += 5; flags.push("Long commute disclosed."); }
+      if (yearsLicensed && yearsLicensed < 3) { premium += 380; risk += 20; flags.push("Driver licensed less than 3 years."); }
+      if (data.license_status && data.license_status !== "Valid") { premium += 500; risk += 35; flags.push("License status may be ineligible or referral."); }
+      if (data.vehicle_use === "Business") { premium += 310; risk += 12; flags.push("Business use disclosed."); }
+      if (data.vehicle_use === "Rideshare / Delivery" || data.commercial_use === "Yes") { premium += 650; risk += 40; flags.push("Rideshare/delivery exposure may be ineligible."); }
+      if (data.out_of_state_garaging === "Yes") { premium += 250; risk += 22; flags.push("Out-of-state garaging requires review."); }
+      if (data.not_registered_insured === "Yes") { premium += 150; risk += 16; flags.push("Vehicle not registered to named insured."); }
+      if (data.salvage_title === "Yes") { premium += 225; risk += 22; flags.push("Salvage/rebuilt title may limit physical damage coverage."); }
+      if (data.modified_vehicle === "Yes") { premium += 175; risk += 12; flags.push("Custom equipment or modifications disclosed."); }
+      if (data.sr22 === "Yes") { premium += 520; risk += 35; flags.push("SR-22/FR-44 filing requires underwriting acceptance."); }
+      if (data.excluded_driver === "Yes") { risk += 14; flags.push("Driver exclusion form required."); }
+      if (data.undisclosed_household === "Yes") { risk += 20; flags.push("All household members must be listed or documented."); }
+
       if (data.bi_limit === "100/300") premium += 115;
       if (data.bi_limit === "250/500") premium += 220;
+      if (data.pd_limit === "100,000") premium += 65;
+      if (data.pd_limit === "250,000") premium += 110;
+      if (data.um_uim === "Match BI") premium += 95;
+      if (data.medpay !== "None" && data.medpay !== "State PIP") premium += 45;
       if (data.comp_ded !== "None") premium += 145;
-      if (data.coll_ded !== "None") premium += 265;
-      premium += violations * 240 + claims * 350;
-      risk += violations * 12 + claims * 16;
-      if (data.excluded_driver === "Yes") { risk += 14; flags.push("Driver exclusion form required."); }
+      if (data.coll_ded !== "None") premium += 275;
+      if (data.rental !== "No") premium += 52;
+      if (data.roadside === "Yes") premium += 28;
+      if (data.loan_lease === "Yes") premium += 62;
+
+      premium += violations * 245 + majorViolations * 650 + claims * 360;
+      risk += violations * 12 + majorViolations * 30 + claims * 16;
+      if (majorViolations > 0) flags.push("Major violation disclosed; referral likely.");
     } else {
       const coverageA = Number(data.coverage_a || 300000);
       const roofAge = Number(new Date().getFullYear()) - Number(data.roof_year || new Date().getFullYear());
+      const homeAge = Number(new Date().getFullYear()) - Number(data.year_built || new Date().getFullYear());
       const homeClaims = Number(data.home_claims || 0);
-      premium += Math.max(0, coverageA - 250000) * 0.0024;
-      if (roofAge > 15) { premium += 420; risk += 18; flags.push("Roof age over 15 years requires photos or inspection."); }
-      if (data.occupancy === "Tenant Occupied" || data.occupancy === "Vacant") { premium += 500; risk += 30; flags.push("Non-primary/vacant occupancy may require referral."); }
-      if (data.cat_exposure === "High") { premium += 550; risk += 28; flags.push("High catastrophe exposure."); }
-      if (data.protection_class === "9-10") { premium += 320; risk += 17; flags.push("Protection class 9-10."); }
-      if (data.liability_hazard === "Yes") { premium += 180; risk += 14; flags.push("Liability hazard disclosed."); }
-      if (data.property_condition === "Yes") { premium += 450; risk += 35; flags.push("Condition/vacancy issue requires referral."); }
-      premium += homeClaims * 420;
+
+      premium += Math.max(0, coverageA - 250000) * 0.0025;
+      if (coverageA > 750000) { premium += 260; risk += 10; flags.push("High dwelling limit may require replacement cost validation."); }
+      if (homeAge > 50) { premium += 280; risk += 15; flags.push("Older home requires update verification."); }
+      if (roofAge > 15) { premium += 430; risk += 18; flags.push("Roof age over 15 years requires photos or inspection."); }
+      if (data.roof_type === "Wood Shake" || data.roof_type === "Flat") { premium += 240; risk += 14; flags.push("Roof type may require underwriting review."); }
+      if (data.construction === "Manufactured" || data.construction === "Log") { premium += 360; risk += 25; flags.push("Construction type may be outside standard appetite."); }
+      if (data.occupancy === "Tenant Occupied" || data.occupancy === "Seasonal") { premium += 500; risk += 26; flags.push("Non-primary occupancy may require special form or referral."); }
+      if (data.occupancy === "Vacant" || data.vacant_unoccupied === "Yes") { premium += 750; risk += 45; flags.push("Vacant/unoccupied risk likely ineligible for standard homeowners."); }
+      if (data.short_term_rental === "Yes") { premium += 520; risk += 35; flags.push("Short-term rental exposure requires specialty review."); }
+      if (data.business_on_premises === "Yes") { premium += 180; risk += 12; flags.push("Business on premises disclosed."); }
+      if (data.cat_exposure === "High") { premium += 575; risk += 28; flags.push("High catastrophe exposure."); }
+      if (data.protection_class === "9-10") { premium += 330; risk += 17; flags.push("Protection class 9-10."); }
+      if (data.fire_distance === "Over 5 miles") { premium += 175; risk += 10; flags.push("Fire response distance over 5 miles."); }
+      if (data.electrical_update === "Over 20 years" || data.plumbing_update === "Over 20 years" || data.hvac_update === "Over 20 years") { premium += 240; risk += 18; flags.push("Older system updates require documentation."); }
+      if (data.pool === "Yes") { premium += 95; risk += 8; flags.push("Pool exposure disclosed."); }
+      if (data.trampoline === "Yes") { premium += 120; risk += 13; flags.push("Trampoline exposure may be ineligible for some carriers."); }
+      if (data.animals === "Yes") { premium += 180; risk += 16; flags.push("Animal bite history/liability hazard disclosed."); }
+      if (data.wood_stove === "Yes" || data.heating_type === "Wood Stove") { premium += 160; risk += 15; flags.push("Wood stove/solid fuel heat requires inspection details."); }
+      if (data.liability_hazard === "Yes") { premium += 190; risk += 14; flags.push("Liability hazard disclosed."); }
+      if (data.property_condition === "Yes") { premium += 475; risk += 35; flags.push("Unrepaired damage or poor condition requires referral."); }
+      if (data.flood_zone === "Yes") { risk += 10; flags.push("Flood zone disclosed; discuss separate flood policy."); }
+      if (data.wind_ded === "Excluded") { risk += 8; flags.push("Wind/hail exclusion selected; confirm insured understanding."); }
+      if (data.water_backup !== "No") premium += 65;
+      if (data.liability_limit === "500,000") premium += 55;
+      if (data.liability_limit === "1,000,000") premium += 95;
+      if (data.protective_devices === "Central alarm" || data.protective_devices === "Fire and burglar alarm") premium -= 60;
+      premium += homeClaims * 430;
       risk += homeClaims * 20;
+      if (homeClaims >= 2) flags.push("Multiple property claims disclosed.");
     }
 
     if (data.paperless === "Yes") premium -= 35;
     if (data.autopay === "Yes") premium -= 45;
     if (data.bundle !== "No") premium -= 85;
+    if (data.telematics === "Yes") premium -= 55;
+    if (data.anti_theft === "Yes") premium -= 30;
 
     premium = Math.max(350, Math.round(premium));
     let status = "Preferred";
@@ -1385,8 +1686,10 @@
       if (action === "policy-search") return handlePolicySearch(actionBtn.dataset.input, actionBtn.dataset.results);
       if (action === "open-policy") return openPolicy(actionBtn.dataset.policy);
       if (action === "load-demo") return loadDemoPolicies();
+      if (action === "select-quote-line") { state.quoteLine = actionBtn.dataset.line; state.quoteResult = null; await renderQuote(); return; }
+      if (action === "change-quote-line") { state.quoteLine = null; state.quoteResult = null; await renderQuote(); return; }
       if (action === "bind-quote") return bindQuote();
-      if (action === "reset-quote") { state.quoteResult = null; await renderQuote(); return; }
+      if (action === "reset-quote") { state.quoteLine = null; state.quoteResult = null; await renderQuote(); return; }
       if (action === "download-id-card") return downloadIdCard();
       if (action === "download-receipt") return downloadReceipt();
       if (action === "download-endorsement-packet") return downloadEndorsementPacket();
