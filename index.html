@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LAVA CarrierOps Training Portal</title>
+  <meta name="description" content="Standalone carrier-style insurance operations simulator for VA training. Works directly on GitHub and Netlify." />
+  <link rel="icon" href="images/favicon.svg" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <section id="loginScreen" class="login-screen">
+    <div class="login-orb orb-one"></div>
+    <div class="login-orb orb-two"></div>
+    <div class="login-card">
+      <div class="brand-row center">
+        <img src="images/logo.svg" alt="LAVA CarrierOps" class="brand-logo" />
+        <div>
+          <p class="eyebrow">Carrier Portal Simulator</p>
+          <h1>LAVA CarrierOps</h1>
+        </div>
+      </div>
+      <p class="login-copy">Training environment for quotes, policy search, ID cards, payments, endorsements, cancellations, and remarketing.</p>
+      <form id="loginForm" class="stacked-form" autocomplete="off">
+        <label>VA / Trainer Name
+          <input id="loginName" type="text" placeholder="Enter your full name" required />
+        </label>
+        <label>Email or Trainee ID
+          <input id="loginEmail" type="text" placeholder="name@lavatraining.com or trainee ID" required />
+        </label>
+        <label>Role
+          <select id="loginRole" required>
+            <option value="va">VA Trainee</option>
+            <option value="trainer">Trainer / Team Lead</option>
+          </select>
+        </label>
+        <label id="trainerCodeWrap" class="hidden">Trainer Access Code
+          <input id="trainerCode" type="password" placeholder="Enter trainer code" />
+        </label>
+        <button type="submit" class="btn primary full">Enter Carrier Portal</button>
+      </form>
+      <div class="login-note">
+        <strong>Training note:</strong> This is a static simulator. It does not connect to real carriers or collect real payments.
+      </div>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand-row">
+        <img src="images/logo.svg" alt="LAVA" class="brand-logo small" />
+        <div>
+          <p class="eyebrow">CarrierOps</p>
+          <h2>Training Portal</h2>
+        </div>
+      </div>
+      <nav class="nav-list" aria-label="Portal sections">
+        <button class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" data-view="policySearch">Policy Search</button>
+        <button class="nav-item" data-view="quoteCenter">Quoting</button>
+        <button class="nav-item" data-view="idCards">Auto Insurance ID</button>
+        <button class="nav-item" data-view="payments">Payment</button>
+        <button class="nav-item" data-view="endorsements">Endorsement</button>
+        <button class="nav-item" data-view="cancellations">Cancel Policy</button>
+        <button class="nav-item" data-view="remarketing">Remarketing</button>
+        <button class="nav-item" data-view="workQueue">Work Queue</button>
+        <button class="nav-item" data-view="trainerReview">Trainer Review</button>
+        <button class="nav-item" data-view="sopGuide">SOP Guide</button>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="themeToggle" class="btn ghost full">Toggle Theme</button>
+        <button id="logoutBtn" class="btn danger-ghost full">Logout</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Operations Workspace</p>
+          <h1 id="viewTitle">Dashboard</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="sessionBadge" class="pill">Not logged in</span>
+          <button id="backupBtn" class="btn secondary">Export Backup</button>
+          <label class="btn secondary file-btn">Import Backup
+            <input id="importBackupInput" type="file" accept="application/json" />
+          </label>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active-view">
+        <div class="hero-panel">
+          <div>
+            <p class="eyebrow">Carrier Desktop</p>
+            <h2>New Business, Policy Service, and Renewal Operations</h2>
+            <p>Use this portal like a real carrier platform: create a quote, bind a training policy, search by policy number or insured name, process ID cards, payments, endorsements, cancellations, and remarketing tasks.</p>
+          </div>
+          <div class="hero-actions">
+            <button class="btn primary" data-jump="quoteCenter">Start Quote</button>
+            <button class="btn secondary" data-jump="policySearch">Search Policy</button>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <article class="stat-card"><span>Total Policies</span><strong id="statPolicies">0</strong><small>Saved training records</small></article>
+          <article class="stat-card"><span>Open Queue</span><strong id="statQueue">0</strong><small>Tasks pending review</small></article>
+          <article class="stat-card"><span>Quotes</span><strong id="statQuotes">0</strong><small>Draft / completed</small></article>
+          <article class="stat-card"><span>Payments</span><strong id="statPayments">0</strong><small>Training receipts</small></article>
+        </div>
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>Quick Carrier Actions</h3><span class="pill">Blank forms</span></div>
+            <div class="action-grid">
+              <button class="action-card" data-jump="quoteCenter"><b>Quote New Business</b><span>Auto / Home intake, underwriting, carrier result</span></button>
+              <button class="action-card" data-jump="policySearch"><b>Find Policy</b><span>Search by policy number or named insured</span></button>
+              <button class="action-card" data-jump="idCards"><b>Generate Auto ID</b><span>Printable auto insurance identification card</span></button>
+              <button class="action-card" data-jump="endorsements"><b>Process Endorsement</b><span>Driver, vehicle, address, coverage, mortgagee</span></button>
+              <button class="action-card" data-jump="payments"><b>Payment Center</b><span>Record training payment and receipt</span></button>
+              <button class="action-card" data-jump="cancellations"><b>Cancel Policy</b><span>Request, compliance checklist, final worksheet</span></button>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Recent Activity</h3><button id="clearActivityBtn" class="btn tiny danger-ghost">Clear</button></div>
+            <div id="recentActivity" class="activity-list empty-state">No activity yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="policySearch" class="view">
+        <div class="panel">
+          <div class="panel-head"><h3>Policy Search</h3><span class="pill">Search by policy number or insured name</span></div>
+          <div class="search-row">
+            <label>Search Type
+              <select id="policySearchType">
+                <option value="policyNumber">Policy Number</option>
+                <option value="insuredName">Name of Insured</option>
+              </select>
+            </label>
+            <label class="grow">Search Value
+              <input id="policySearchValue" type="search" placeholder="Example: LVA-AUTO-260001 or Juan Dela Cruz" />
+            </label>
+            <button id="policySearchBtn" class="btn primary">Search</button>
+            <button id="resetSearchBtn" class="btn secondary">Reset</button>
+          </div>
+          <div class="info-banner">There are no pre-filled customer records. Policies appear here only after the trainee creates or binds a training policy.</div>
+          <div id="policyResults" class="result-list empty-state">No policy selected.</div>
+        </div>
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>Create Blank Training Policy</h3><span class="pill warning">Manual policy admin</span></div>
+            <form id="manualPolicyForm" class="stacked-form grid-form">
+              <label>Line of Business
+                <select name="lob" required>
+                  <option value="">Select LOB</option>
+                  <option value="Auto">Personal Auto</option>
+                  <option value="Home">Homeowners</option>
+                </select>
+              </label>
+              <label>Named Insured
+                <input name="insuredName" type="text" required placeholder="Enter customer name" />
+              </label>
+              <label>Policy Number
+                <input name="policyNumber" type="text" placeholder="Leave blank to auto-generate" />
+              </label>
+              <label>Effective Date
+                <input name="effectiveDate" type="date" required />
+              </label>
+              <label>Expiration Date
+                <input name="expirationDate" type="date" required />
+              </label>
+              <label>Premium
+                <input name="premium" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <label>Status
+                <select name="status" required>
+                  <option value="Active">Active</option>
+                  <option value="Pending Underwriting">Pending Underwriting</option>
+                  <option value="Pending Payment">Pending Payment</option>
+                  <option value="Pending Cancellation">Pending Cancellation</option>
+                </select>
+              </label>
+              <label>Primary Address / Risk Location
+                <input name="riskAddress" type="text" placeholder="Enter address" />
+              </label>
+              <label class="full-span">Service Notes
+                <textarea name="notes" rows="3" placeholder="Enter policy notes, open items, or carrier instructions"></textarea>
+              </label>
+              <button type="submit" class="btn primary full-span">Save Training Policy</button>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Selected Policy File</h3><span id="selectedPolicyBadge" class="pill">None</span></div>
+            <div id="selectedPolicyPanel" class="empty-state">Search or create a policy to view policy file actions.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="quoteCenter" class="view">
+        <div class="panel">
+          <div class="panel-head"><h3>New Business Quote</h3><span class="pill">Carrier-style intake</span></div>
+          <div class="quote-progress">
+            <button class="step-dot active" data-quote-tab="account">1 Account</button>
+            <button class="step-dot" data-quote-tab="risk">2 Risk Details</button>
+            <button class="step-dot" data-quote-tab="coverage">3 Coverage</button>
+            <button class="step-dot" data-quote-tab="underwriting">4 Underwriting</button>
+            <button class="step-dot" data-quote-tab="review">5 Review</button>
+          </div>
+          <form id="quoteForm" class="carrier-form" autocomplete="off">
+            <div class="quote-tab active" id="tab-account">
+              <h4>Account Setup</h4>
+              <div class="grid-form">
+                <label>Line of Business
+                  <select name="product" id="quoteProduct" required>
+                    <option value="">Select product</option>
+                    <option value="Auto">Personal Auto</option>
+                    <option value="Home">Homeowners</option>
+                  </select>
+                </label>
+                <label>Transaction Type
+                  <select name="transactionType" required>
+                    <option value="New Business">New Business</option>
+                    <option value="Remarket">Remarket</option>
+                    <option value="Rewrite">Rewrite</option>
+                  </select>
+                </label>
+                <label>Agency Producer
+                  <input name="producer" type="text" placeholder="Producer name" />
+                </label>
+                <label>Requested Effective Date
+                  <input name="effectiveDate" type="date" required />
+                </label>
+                <label>Named Insured
+                  <input name="insuredName" type="text" required placeholder="Enter named insured" />
+                </label>
+                <label>Date of Birth / Entity Date
+                  <input name="dob" type="date" />
+                </label>
+                <label>Phone
+                  <input name="phone" type="tel" placeholder="Phone number" />
+                </label>
+                <label>Email
+                  <input name="email" type="email" placeholder="Email address" />
+                </label>
+                <label class="full-span">Mailing Address
+                  <input name="mailingAddress" type="text" placeholder="Street, City, State, ZIP" />
+                </label>
+                <label>Current Carrier
+                  <input name="currentCarrier" type="text" placeholder="Leave blank if none" />
+                </label>
+                <label>Current Policy Expiration
+                  <input name="currentExpiration" type="date" />
+                </label>
+                <label>Continuous Insurance?
+                  <select name="continuousInsurance">
+                    <option value="">Select</option>
+                    <option>Yes</option>
+                    <option>No</option>
+                  </select>
+                </label>
+                <label>Lapse Days
+                  <input name="lapseDays" type="number" min="0" placeholder="0" />
+                </label>
+              </div>
+            </div>
+
+            <div class="quote-tab" id="tab-risk">
+              <h4>Risk Details</h4>
+              <div class="product-panel auto-fields">
+                <h5>Auto Risk Information</h5>
+                <div class="grid-form">
+                  <label>Garaging Address
+                    <input name="autoGaragingAddress" type="text" placeholder="Street, City, State, ZIP" />
+                  </label>
+                  <label>Primary Use
+                    <select name="vehicleUse">
+                      <option value="">Select</option>
+                      <option>Commute</option>
+                      <option>Pleasure</option>
+                      <option>Business</option>
+                      <option>Delivery / Rideshare</option>
+                    </select>
+                  </label>
+                  <label>Annual Mileage
+                    <input name="annualMileage" type="number" min="0" placeholder="Estimated annual miles" />
+                  </label>
+                  <label>Vehicle Ownership
+                    <select name="ownership">
+                      <option value="">Select</option>
+                      <option>Owned</option>
+                      <option>Financed</option>
+                      <option>Leased</option>
+                    </select>
+                  </label>
+                  <label>VIN
+                    <input name="vin" type="text" maxlength="17" placeholder="17-character VIN" />
+                  </label>
+                  <label>Year
+                    <input name="vehicleYear" type="number" min="1980" max="2035" placeholder="YYYY" />
+                  </label>
+                  <label>Make
+                    <input name="vehicleMake" type="text" placeholder="Vehicle make" />
+                  </label>
+                  <label>Model
+                    <input name="vehicleModel" type="text" placeholder="Vehicle model" />
+                  </label>
+                  <label>Driver Full Name
+                    <input name="driverName" type="text" placeholder="Primary driver" />
+                  </label>
+                  <label>License State
+                    <input name="licenseState" type="text" maxlength="2" placeholder="CA" />
+                  </label>
+                  <label>Years Licensed
+                    <input name="yearsLicensed" type="number" min="0" placeholder="Years" />
+                  </label>
+                  <label>Accidents / Violations Last 5 Years
+                    <input name="violations" type="number" min="0" placeholder="0" />
+                  </label>
+                  <label>Any SR-22 / FR-44 Required?
+                    <select name="sr22"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                  </label>
+                  <label>Any Excluded Drivers Needed?
+                    <select name="excludedDrivers"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                  </label>
+                </div>
+              </div>
+              <div class="product-panel home-fields hidden">
+                <h5>Home Risk Information</h5>
+                <div class="grid-form">
+                  <label>Property Address
+                    <input name="propertyAddress" type="text" placeholder="Street, City, State, ZIP" />
+                  </label>
+                  <label>Occupancy
+                    <select name="occupancy"><option value="">Select</option><option>Primary Residence</option><option>Secondary Home</option><option>Rental</option><option>Vacant</option></select>
+                  </label>
+                  <label>Year Built
+                    <input name="yearBuilt" type="number" min="1800" max="2035" placeholder="YYYY" />
+                  </label>
+                  <label>Square Footage
+                    <input name="squareFeet" type="number" min="0" placeholder="0" />
+                  </label>
+                  <label>Construction Type
+                    <select name="construction"><option value="">Select</option><option>Frame</option><option>Masonry</option><option>Brick Veneer</option><option>Manufactured Home</option></select>
+                  </label>
+                  <label>Roof Year
+                    <input name="roofYear" type="number" min="1800" max="2035" placeholder="YYYY" />
+                  </label>
+                  <label>Roof Type
+                    <select name="roofType"><option value="">Select</option><option>Composition Shingle</option><option>Tile</option><option>Metal</option><option>Wood Shake</option><option>Flat Roof</option></select>
+                  </label>
+                  <label>Protection Class
+                    <select name="protectionClass"><option value="">Select</option><option>1-3</option><option>4-6</option><option>7-8</option><option>9-10</option></select>
+                  </label>
+                  <label>Updates Completed?
+                    <select name="homeUpdates"><option value="">Select</option><option>Roof only</option><option>Plumbing/Electrical/HVAC</option><option>All major systems</option><option>No updates</option></select>
+                  </label>
+                  <label>Mortgagee / Loss Payee
+                    <input name="mortgagee" type="text" placeholder="Mortgagee name" />
+                  </label>
+                  <label>Claims Last 5 Years
+                    <input name="homeClaims" type="number" min="0" placeholder="0" />
+                  </label>
+                  <label>Any Pool, Trampoline, Dog, Wood Stove?
+                    <select name="homeHazards"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="quote-tab" id="tab-coverage">
+              <h4>Coverage Selection</h4>
+              <div class="product-panel auto-fields">
+                <h5>Auto Coverages</h5>
+                <div class="grid-form">
+                  <label>Bodily Injury Limit
+                    <select name="biLimit"><option value="">Select</option><option>State Minimum</option><option>25/50</option><option>50/100</option><option>100/300</option><option>250/500</option></select>
+                  </label>
+                  <label>Property Damage Limit
+                    <select name="pdLimit"><option value="">Select</option><option>10,000</option><option>25,000</option><option>50,000</option><option>100,000</option></select>
+                  </label>
+                  <label>UM/UIM
+                    <select name="umLimit"><option value="">Select</option><option>Reject</option><option>Match BI</option><option>Lower than BI</option></select>
+                  </label>
+                  <label>Medical Payments
+                    <select name="medPay"><option value="">Select</option><option>None</option><option>1,000</option><option>5,000</option><option>10,000</option></select>
+                  </label>
+                  <label>Comprehensive Deductible
+                    <select name="compDed"><option value="">Select</option><option>None</option><option>250</option><option>500</option><option>1,000</option></select>
+                  </label>
+                  <label>Collision Deductible
+                    <select name="collDed"><option value="">Select</option><option>None</option><option>250</option><option>500</option><option>1,000</option></select>
+                  </label>
+                  <label>Rental Reimbursement
+                    <select name="rental"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                  </label>
+                  <label>Roadside Assistance
+                    <select name="roadside"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                  </label>
+                </div>
+              </div>
+              <div class="product-panel home-fields hidden">
+                <h5>Home Coverages</h5>
+                <div class="grid-form">
+                  <label>Coverage A - Dwelling
+                    <input name="coverageA" type="number" min="0" placeholder="Dwelling amount" />
+                  </label>
+                  <label>Other Structures
+                    <select name="coverageB"><option value="">Select</option><option>10%</option><option>20%</option><option>Custom</option></select>
+                  </label>
+                  <label>Personal Property
+                    <select name="coverageC"><option value="">Select</option><option>50%</option><option>70%</option><option>Replacement Cost</option></select>
+                  </label>
+                  <label>Loss of Use
+                    <select name="coverageD"><option value="">Select</option><option>20%</option><option>30%</option><option>Actual Loss Sustained</option></select>
+                  </label>
+                  <label>Liability Limit
+                    <select name="liability"><option value="">Select</option><option>100,000</option><option>300,000</option><option>500,000</option><option>1,000,000</option></select>
+                  </label>
+                  <label>Medical Payments
+                    <select name="homeMedPay"><option value="">Select</option><option>1,000</option><option>5,000</option><option>10,000</option></select>
+                  </label>
+                  <label>AOP Deductible
+                    <select name="aopDed"><option value="">Select</option><option>500</option><option>1,000</option><option>2,500</option><option>5,000</option></select>
+                  </label>
+                  <label>Wind/Hail Deductible
+                    <select name="windDed"><option value="">Select</option><option>Included</option><option>1%</option><option>2%</option><option>5%</option></select>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="quote-tab" id="tab-underwriting">
+              <h4>Carrier Underwriting Questions</h4>
+              <div class="grid-form">
+                <label>Any prior cancellation/non-renewal for underwriting reasons?
+                  <select name="priorCancel"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                </label>
+                <label>Any open claims or pending litigation?
+                  <select name="openClaims"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                </label>
+                <label>Is the risk currently insured at requested effective date?
+                  <select name="currentlyInsured"><option value="">Select</option><option>Yes</option><option>No</option></select>
+                </label>
+                <label>Any material misrepresentation found during review?
+                  <select name="misrepresentation"><option value="">Select</option><option>No</option><option>Yes</option></select>
+                </label>
+                <label>Required documents received?
+                  <select name="documentsReceived"><option value="">Select</option><option>Yes</option><option>No</option><option>Partial</option></select>
+                </label>
+                <label>Payment collected or payment plan selected?
+                  <select name="paymentReady"><option value="">Select</option><option>Yes</option><option>No</option></select>
+                </label>
+                <label class="full-span">Underwriting Notes / Remarks
+                  <textarea name="uwNotes" rows="4" placeholder="Document carrier remarks, missing items, exceptions, or referral explanation"></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div class="quote-tab" id="tab-review">
+              <h4>Review & Submit</h4>
+              <div class="review-grid">
+                <div class="info-banner">Review all required intake answers before generating carrier indications. This simulator uses training logic only.</div>
+                <div id="quoteValidation" class="validation-box">No validation run yet.</div>
+              </div>
+            </div>
+
+            <div class="form-actions sticky-actions">
+              <button type="button" id="prevQuoteStep" class="btn secondary">Previous</button>
+              <button type="button" id="nextQuoteStep" class="btn secondary">Next</button>
+              <button type="button" id="saveQuoteDraftBtn" class="btn secondary">Save Draft</button>
+              <button type="submit" class="btn primary">Generate Carrier Result</button>
+              <button type="reset" class="btn danger-ghost">Clear Form</button>
+            </div>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Carrier Results</h3><span class="pill">Training indications</span></div>
+          <div id="quoteResults" class="result-list empty-state">Complete the blank quote form and generate results.</div>
+        </div>
+      </section>
+
+      <section id="idCards" class="view">
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>Generate Auto Insurance ID Card</h3><span class="pill">Printable</span></div>
+            <form id="idCardForm" class="stacked-form grid-form">
+              <label>Policy Number
+                <input name="policyNumber" type="text" placeholder="Enter auto policy number" />
+              </label>
+              <label>Named Insured
+                <input name="insuredName" type="text" placeholder="Enter insured name" required />
+              </label>
+              <label>Effective Date
+                <input name="effectiveDate" type="date" required />
+              </label>
+              <label>Expiration Date
+                <input name="expirationDate" type="date" required />
+              </label>
+              <label>VIN
+                <input name="vin" type="text" maxlength="17" placeholder="VIN" required />
+              </label>
+              <label>Vehicle Year
+                <input name="vehicleYear" type="number" min="1980" max="2035" placeholder="YYYY" required />
+              </label>
+              <label>Make
+                <input name="vehicleMake" type="text" placeholder="Make" required />
+              </label>
+              <label>Model
+                <input name="vehicleModel" type="text" placeholder="Model" required />
+              </label>
+              <label>Agency / Producer
+                <input name="agency" type="text" placeholder="Agency name" />
+              </label>
+              <label>Carrier Name
+                <input name="carrier" type="text" placeholder="Training carrier" />
+              </label>
+              <button type="submit" class="btn primary full-span">Generate ID Card</button>
+              <button type="button" id="printIdCardBtn" class="btn secondary full-span">Print ID Card</button>
+            </form>
+          </section>
+          <section class="panel print-area" id="idCardPrintArea">
+            <div class="panel-head"><h3>Auto Insurance Identification Card</h3><span class="pill warning">Training Copy</span></div>
+            <div id="idCardPreview" class="id-card empty-state">No ID card generated yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="payments" class="view">
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>Payment Center</h3><span class="pill">Training receipt</span></div>
+            <form id="paymentForm" class="stacked-form grid-form">
+              <label>Policy Number
+                <input name="policyNumber" type="text" placeholder="Policy number" required />
+              </label>
+              <label>Named Insured
+                <input name="insuredName" type="text" placeholder="Insured name" required />
+              </label>
+              <label>Payment Type
+                <select name="paymentType" required>
+                  <option value="">Select</option>
+                  <option>Down Payment</option>
+                  <option>Installment</option>
+                  <option>Renewal Payment</option>
+                  <option>Reinstatement Payment</option>
+                  <option>Endorsement Additional Premium</option>
+                </select>
+              </label>
+              <label>Amount
+                <input name="amount" type="number" min="0" step="0.01" required placeholder="0.00" />
+              </label>
+              <label>Payment Method
+                <select name="method" required>
+                  <option value="">Select</option>
+                  <option>Credit / Debit Card</option>
+                  <option>ACH</option>
+                  <option>Check</option>
+                  <option>Agency Sweep</option>
+                  <option>Mortgagee Bill</option>
+                </select>
+              </label>
+              <label>Due Date
+                <input name="dueDate" type="date" />
+              </label>
+              <label>Confirmation / Reference Number
+                <input name="reference" type="text" placeholder="Leave blank to auto-generate" />
+              </label>
+              <label>Payment Status
+                <select name="status" required>
+                  <option>Posted</option>
+                  <option>Pending Carrier Confirmation</option>
+                  <option>Failed / Returned</option>
+                </select>
+              </label>
+              <label class="full-span">Payment Notes
+                <textarea name="notes" rows="3" placeholder="Document payer, authorization, billing change, or next due date"></textarea>
+              </label>
+              <button type="submit" class="btn primary full-span">Post Training Payment</button>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Payment History</h3><button id="exportPaymentsBtn" class="btn tiny secondary">Export CSV</button></div>
+            <div id="paymentHistory" class="table-wrap empty-state">No payments recorded yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="endorsements" class="view">
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>How to Process an Endorsement</h3><span class="pill">Carrier workflow</span></div>
+            <ol class="workflow-list">
+              <li>Search and verify the policy number, named insured, policy status, and effective dates.</li>
+              <li>Confirm the requested change and identify if it is flat, pro-rata, or subject to underwriting approval.</li>
+              <li>Collect all required details and documents before submitting the endorsement.</li>
+              <li>Quote additional or return premium when required.</li>
+              <li>Document the change, submit for carrier processing, and notify the agency/client.</li>
+            </ol>
+            <div id="endorsementChecklist" class="checklist-box">Select an endorsement type to view required questions.</div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Endorsement Request</h3><span class="pill">Blank request</span></div>
+            <form id="endorsementForm" class="stacked-form grid-form">
+              <label>Policy Number
+                <input name="policyNumber" type="text" placeholder="Policy number" required />
+              </label>
+              <label>Named Insured
+                <input name="insuredName" type="text" placeholder="Insured name" required />
+              </label>
+              <label>Line of Business
+                <select name="lob" required><option value="">Select</option><option>Auto</option><option>Home</option></select>
+              </label>
+              <label>Endorsement Type
+                <select name="type" id="endorsementType" required>
+                  <option value="">Select type</option>
+                  <option>Add Driver</option>
+                  <option>Remove Driver</option>
+                  <option>Add Vehicle</option>
+                  <option>Remove Vehicle</option>
+                  <option>Change Address</option>
+                  <option>Coverage Change</option>
+                  <option>Add Mortgagee / Loss Payee</option>
+                  <option>Add Lienholder</option>
+                  <option>Correct Named Insured</option>
+                </select>
+              </label>
+              <label>Requested Effective Date
+                <input name="effectiveDate" type="date" required />
+              </label>
+              <label>Premium Impact
+                <select name="premiumImpact" required><option value="">Select</option><option>Additional Premium</option><option>Return Premium</option><option>No Premium Change</option><option>Pending Carrier Rating</option></select>
+              </label>
+              <label>Supporting Documents Received?
+                <select name="docsReceived" required><option value="">Select</option><option>Yes</option><option>No</option><option>Not Required</option></select>
+              </label>
+              <label>UW Approval Required?
+                <select name="uwApproval" required><option value="">Select</option><option>No</option><option>Yes</option><option>Unsure / Refer to Carrier</option></select>
+              </label>
+              <label class="full-span">Detailed Change Request
+                <textarea name="details" rows="4" required placeholder="Enter exact change details, old value, new value, and customer instructions"></textarea>
+              </label>
+              <button type="submit" class="btn primary full-span">Submit Endorsement Workflow</button>
+            </form>
+          </section>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h3>Endorsement Log</h3><button id="exportEndorsementsBtn" class="btn tiny secondary">Export CSV</button></div>
+          <div id="endorsementLog" class="table-wrap empty-state">No endorsements processed yet.</div>
+        </section>
+      </section>
+
+      <section id="cancellations" class="view">
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>How to Cancel a Policy</h3><span class="pill danger">Compliance workflow</span></div>
+            <div class="info-banner danger-soft">Cancellation steps vary by state, carrier, and reason. This simulator is for training only. Always follow agency/carrier SOP.</div>
+            <ol class="workflow-list">
+              <li>Verify policy, named insured authority, effective date, and cancellation reason.</li>
+              <li>Check if the policy can be canceled flat, pro-rata, or short-rate.</li>
+              <li>Collect signed cancellation request or proof of replacement coverage when required.</li>
+              <li>Check open balance, pending payments, mortgagee/lienholder requirements, and refund handling.</li>
+              <li>Submit carrier cancellation request, document the file, and set follow-up for confirmation.</li>
+            </ol>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Cancellation Request</h3><span class="pill">Blank request</span></div>
+            <form id="cancellationForm" class="stacked-form grid-form">
+              <label>Policy Number
+                <input name="policyNumber" type="text" placeholder="Policy number" required />
+              </label>
+              <label>Named Insured
+                <input name="insuredName" type="text" placeholder="Insured name" required />
+              </label>
+              <label>Line of Business
+                <select name="lob" required><option value="">Select</option><option>Auto</option><option>Home</option></select>
+              </label>
+              <label>Cancellation Reason
+                <select name="reason" required>
+                  <option value="">Select</option>
+                  <option>Insured Request</option>
+                  <option>Rewritten / Replacement Coverage</option>
+                  <option>Non-Payment</option>
+                  <option>Sold Vehicle / Sold Property</option>
+                  <option>Moved Out of State</option>
+                  <option>Underwriting Request</option>
+                </select>
+              </label>
+              <label>Requested Cancellation Date
+                <input name="cancelDate" type="date" required />
+              </label>
+              <label>Replacement Carrier / Policy
+                <input name="replacement" type="text" placeholder="If applicable" />
+              </label>
+              <label>Signed LPR / Request Received?
+                <select name="signedRequest" required><option value="">Select</option><option>Yes</option><option>No</option><option>Not Required</option></select>
+              </label>
+              <label>Refund Handling
+                <select name="refund" required><option value="">Select</option><option>Refund to insured</option><option>Apply to balance</option><option>No refund expected</option><option>Pending carrier calculation</option></select>
+              </label>
+              <label class="full-span">Cancellation Notes
+                <textarea name="notes" rows="4" placeholder="Document authority, required documents, refund expectations, and follow-up date"></textarea>
+              </label>
+              <button type="submit" class="btn danger full-span">Create Cancellation Workflow</button>
+            </form>
+          </section>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h3>Cancellation Log</h3><button id="exportCancellationsBtn" class="btn tiny secondary">Export CSV</button></div>
+          <div id="cancellationLog" class="table-wrap empty-state">No cancellations processed yet.</div>
+        </section>
+      </section>
+
+      <section id="remarketing" class="view">
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>Quoting & Remarketing</h3><span class="pill">Renewal rescue</span></div>
+            <form id="remarketForm" class="stacked-form grid-form">
+              <label>Named Insured
+                <input name="insuredName" type="text" placeholder="Insured name" required />
+              </label>
+              <label>Current Policy Number
+                <input name="policyNumber" type="text" placeholder="Policy number" />
+              </label>
+              <label>Line of Business
+                <select name="lob" required><option value="">Select</option><option>Auto</option><option>Home</option><option>Bundle</option></select>
+              </label>
+              <label>Current Premium
+                <input name="currentPremium" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>Renewal Premium
+                <input name="renewalPremium" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>Renewal Effective Date
+                <input name="renewalDate" type="date" required />
+              </label>
+              <label>Remarketing Reason
+                <select name="reason" required>
+                  <option value="">Select</option>
+                  <option>Premium Increase</option>
+                  <option>Coverage Concern</option>
+                  <option>Carrier Non-Renewal</option>
+                  <option>Better Market Available</option>
+                  <option>Customer Requested Review</option>
+                </select>
+              </label>
+              <label>Target Carrier Count
+                <select name="carrierCount" required><option>3</option><option>4</option><option>5</option></select>
+              </label>
+              <label class="full-span">Remarketing Notes
+                <textarea name="notes" rows="4" placeholder="Document coverage goals, markets to approach, loss concerns, and agency instructions"></textarea>
+              </label>
+              <button type="submit" class="btn primary full-span">Generate Remarketing Worksheet</button>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Market Comparison</h3><button id="exportRemarketsBtn" class="btn tiny secondary">Export CSV</button></div>
+            <div id="remarketResults" class="result-list empty-state">No remarketing worksheet generated yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="workQueue" class="view">
+        <section class="panel">
+          <div class="panel-head"><h3>Work Queue</h3><div><button id="addManualTaskBtn" class="btn tiny secondary">Add Task</button> <button id="clearCompletedTasksBtn" class="btn tiny danger-ghost">Clear Completed</button></div></div>
+          <div id="queueList" class="queue-list empty-state">No open tasks yet.</div>
+        </section>
+      </section>
+
+      <section id="trainerReview" class="view">
+        <div class="grid two-col">
+          <section class="panel">
+            <div class="panel-head"><h3>Trainer QA Review</h3><span class="pill">Audit trainee work</span></div>
+            <form id="qaForm" class="stacked-form grid-form">
+              <label>Reviewed Work Item / Policy
+                <input name="reference" type="text" placeholder="Policy, quote, endorsement, or payment ref" required />
+              </label>
+              <label>Trainee Name
+                <input name="trainee" type="text" placeholder="VA name" required />
+              </label>
+              <label>Accuracy Score
+                <input name="accuracy" type="number" min="0" max="100" required placeholder="0-100" />
+              </label>
+              <label>Process Score
+                <input name="process" type="number" min="0" max="100" required placeholder="0-100" />
+              </label>
+              <label>Documentation Score
+                <input name="documentation" type="number" min="0" max="100" required placeholder="0-100" />
+              </label>
+              <label>Outcome
+                <select name="outcome" required><option>Passed</option><option>Coaching Required</option><option>Rework Required</option></select>
+              </label>
+              <label class="full-span">Trainer Comments
+                <textarea name="comments" rows="4" placeholder="Coaching notes and next action"></textarea>
+              </label>
+              <button type="submit" class="btn primary full-span">Save QA Review</button>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>QA Scores</h3><button id="exportQaBtn" class="btn tiny secondary">Export CSV</button></div>
+            <div id="qaLog" class="table-wrap empty-state">No QA reviews yet.</div>
+          </section>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h3>Login & System Activity</h3><button id="exportActivityBtn" class="btn tiny secondary">Export CSV</button></div>
+          <div id="systemActivity" class="table-wrap empty-state">No system activity yet.</div>
+        </section>
+      </section>
+
+      <section id="sopGuide" class="view">
+        <div class="panel guide-panel">
+          <div class="panel-head"><h3>Carrier Portal SOP Guide</h3><span class="pill">Training workflow</span></div>
+          <div class="guide-grid">
+            <article><h4>1. Policy Search</h4><p>Start every service request by searching the policy number or named insured. Verify LOB, status, effective dates, and authority before changing anything.</p></article>
+            <article><h4>2. Auto ID Cards</h4><p>Confirm active auto policy, VIN, effective/expiration dates, and vehicle details. Generate the card only after policy status and coverage are verified.</p></article>
+            <article><h4>3. Payments</h4><p>Identify payment type, amount due, due date, method, and reference number. Document authorization and save the receipt.</p></article>
+            <article><h4>4. Endorsements</h4><p>Clarify the requested change, collect required details, check underwriting impact, quote premium change, and document confirmation.</p></article>
+            <article><h4>5. Cancellations</h4><p>Verify authority, reason, requested date, signed request, replacement coverage, refund handling, and follow-up for carrier confirmation.</p></article>
+            <article><h4>6. Remarketing</h4><p>Compare current vs renewal premium, identify reason, gather updated exposures, approach markets, and summarize the best option.</p></article>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="data/carrier-rules.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
