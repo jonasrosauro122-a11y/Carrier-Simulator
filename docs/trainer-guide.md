@@ -1,20 +1,26 @@
 # Trainer Guide
 
-Use this portal to teach carrier-style workflow discipline.
+Use this simulator to help VAs practice carrier-style Personal Lines servicing workflows.
 
-## Suggested Practice Flow
+## Suggested training flow
 
-1. VA logs in.
-2. VA completes a blank Auto or Home quote.
-3. VA reviews carrier warnings and creates a training policy from the best result.
-4. VA searches the policy by policy number and insured name.
-5. VA generates an Auto ID card when applicable.
-6. VA processes a payment.
-7. VA completes one endorsement workflow.
-8. VA completes one cancellation workflow.
-9. VA creates a remarketing worksheet.
-10. Trainer reviews activity and scores the VA in Trainer Review.
+1. Login as VA Trainee.
+2. Create a blank Auto or Home quote from scratch.
+3. Run carrier rating and review referral/decline flags.
+4. Bind a training policy.
+5. Search the policy by policy number and insured name.
+6. Generate an Auto ID card if the policy is Auto.
+7. Process a payment.
+8. Process an endorsement.
+9. Create a cancellation request.
+10. Create a remarketing task.
+11. Login as Trainer/TL with code `LAVA2026` and add QA feedback.
 
-## Trainer Code
+## Scoring focus
 
-`LAVA2026`
+- Accuracy of insured information
+- Completeness of driver/vehicle/property details
+- Correct interpretation of underwriting questions
+- Clear notes and documentation
+- Correct servicing workflow steps
+- Proper task follow-up and escalation judgment
