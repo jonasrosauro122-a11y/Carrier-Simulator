@@ -1670,8 +1670,11 @@
       await store.logLogin(user);
       $("#login-screen").classList.add("hidden");
       $("#app-shell").classList.remove("hidden");
+      state.activePolicy = null;
+      state.quoteLine = null;
+      state.quoteResult = null;
       updateChrome();
-      await navigate(location.hash.replace("#", "") || "dashboard");
+      await navigate("dashboard");
     });
 
     document.body.addEventListener("click", async (e) => {
@@ -1745,8 +1748,11 @@
     if (state.user) {
       $("#login-screen").classList.add("hidden");
       $("#app-shell").classList.remove("hidden");
+      state.activePolicy = null;
+      state.quoteLine = null;
+      state.quoteResult = null;
       updateChrome();
-      await navigate(location.hash.replace("#", "") || "dashboard");
+      await navigate("dashboard");
     }
   }
 
