@@ -16,8 +16,8 @@ js/app.js
 js/rating-engine.js
 data/carriers.js
 data/questions.js
-images/logo.svg
-images/favicon.svg
+images/logo.png
+images/favicon.png
 docs/trainer-guide.md
 netlify.toml
 _redirects
