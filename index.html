@@ -1,580 +1,129 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LAVA CarrierOps Training Portal</title>
-  <meta name="description" content="Standalone carrier operations training portal for VA insurance training." />
-  <link rel="icon" href="images/favicon.svg" type="image/svg+xml" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LAVA CarrierOps | Training Portal</title>
+  <meta name="description" content="Standalone carrier operations training portal for VA practice: quoting, policy search, ID cards, payments, endorsements, cancellations, remarketing, and trainer QA." />
+  <link rel="icon" href="images/logo.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div id="loginScreen" class="login-screen">
-    <div class="login-bg-grid"></div>
-    <section class="login-card">
-      <div class="brand-lockup center">
-        <img src="images/logo.svg" alt="LAVA CarrierOps" class="logo" />
-        <div>
-          <p class="eyebrow">Training Simulator</p>
-          <h1>LAVA CarrierOps Portal</h1>
-        </div>
-      </div>
-      <p class="muted center-text">Practice carrier-style quoting, servicing, endorsements, payments, cancellations, ID card generation, and remarketing in one static Netlify-ready portal.</p>
-      <form id="loginForm" class="stack form-card flat">
-        <label>VA / Trainee Name
-          <input id="loginName" type="text" placeholder="Enter full name" required autocomplete="name" />
-        </label>
-        <label>Training Role
-          <select id="loginRole">
-            <option value="VA Trainee">VA Trainee</option>
-            <option value="Trainer">Trainer / TL</option>
-          </select>
-        </label>
-        <label id="trainerCodeRow" class="hidden">Trainer Access Code
-          <input id="trainerCode" type="password" placeholder="Required for Trainer/TL" autocomplete="off" />
-        </label>
-        <label>Team / Batch / Agency
-          <input id="loginTeam" type="text" placeholder="Example: PL Rater Batch 01" />
-        </label>
-        <button class="primary-btn full" type="submit">Enter Training Portal</button>
-      </form>
-      <p class="fineprint">Static training build. Data is saved only in this browser using localStorage unless exported.</p>
-    </section>
-  </div>
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
 
-  <div id="appShell" class="app-shell hidden">
-    <aside class="sidebar">
-      <div class="brand-lockup sidebar-brand">
-        <img src="images/logo.svg" alt="LAVA CarrierOps" class="logo" />
+  <section id="login-screen" class="login-screen">
+    <div class="login-hero">
+      <div class="brand-lockup">
+        <img src="images/logo.svg" alt="LAVA CarrierOps logo" class="login-logo" />
         <div>
           <p class="eyebrow">CarrierOps</p>
-          <strong>Training Portal</strong>
+          <h1>Training Portal</h1>
+          <p class="muted">Practice carrier-style service workflows in a safe training simulator.</p>
         </div>
       </div>
-      <button class="nav-item active" data-route="dashboard">Dashboard</button>
-      <button class="nav-item" data-route="policy-search">Policy Search</button>
-      <button class="nav-item" data-route="quote-center">New Quote</button>
-      <button class="nav-item" data-route="id-cards">Auto ID Cards</button>
-      <button class="nav-item" data-route="payments">Payments</button>
-      <button class="nav-item" data-route="endorsements">Endorsements</button>
-      <button class="nav-item" data-route="cancellations">Cancellations</button>
-      <button class="nav-item" data-route="remarketing">Remarketing</button>
-      <button class="nav-item" data-route="work-queue">Work Queue</button>
-      <button class="nav-item trainer-only" data-route="trainer-center">Trainer Center</button>
-      <button class="nav-item" data-route="sop-guide">SOP Guide</button>
-      <div class="sidebar-footer">
-        <button id="darkModeBtn" class="ghost-btn full">Toggle Dark Mode</button>
-        <button id="logoutBtn" class="danger-ghost full">Logout</button>
+      <div class="hero-grid">
+        <div class="hero-card">
+          <span>01</span>
+          <strong>Pull up policies</strong>
+          <p>Search by policy number or named insured and process service tasks.</p>
+        </div>
+        <div class="hero-card">
+          <span>02</span>
+          <strong>Carrier workflows</strong>
+          <p>Quote, bind, create ID cards, post payments, process endorsements and cancellations.</p>
+        </div>
+        <div class="hero-card">
+          <span>03</span>
+          <strong>Trainer QA</strong>
+          <p>Track login history, audit activity, and trainee processing quality.</p>
+        </div>
       </div>
-    </aside>
+    </div>
+
+    <form id="login-form" class="login-panel">
+      <p class="eyebrow">VA Access</p>
+      <h2>Sign in for training</h2>
+      <label>
+        VA Full Name
+        <input id="login-name" required autocomplete="name" placeholder="Example: Juan Dela Cruz" />
+      </label>
+      <label>
+        Work Email
+        <input id="login-email" required type="email" autocomplete="email" placeholder="name@lavatraining.com" />
+      </label>
+      <label>
+        Access Type
+        <select id="login-role">
+          <option value="VA">Virtual Assistant</option>
+          <option value="Trainer">Trainer / Team Lead</option>
+        </select>
+      </label>
+      <label id="trainer-code-wrap" class="hidden">
+        Trainer Code
+        <input id="trainer-code" placeholder="Enter trainer code" />
+      </label>
+      <button class="btn primary full" type="submit">Enter Portal</button>
+      <p class="help-text">Trainer code: <strong>LAVA2026</strong>. This is a training simulator, not a real carrier system.</p>
+    </form>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <a class="brand" href="#dashboard" data-route="dashboard">
+          <img src="images/logo.svg" alt="CarrierOps" />
+          <span>
+            <small>CARRIEROPS</small>
+            <strong>Training Portal</strong>
+          </span>
+        </a>
+        <nav class="topnav" aria-label="Main navigation">
+          <button data-route="dashboard" class="nav-link active">Dashboard</button>
+          <button data-route="search" class="nav-link">Policy Search</button>
+          <button data-route="quote" class="nav-link">New Quote</button>
+          <button data-route="idcards" class="nav-link">Auto ID Cards</button>
+          <button data-route="payments" class="nav-link">Payments</button>
+          <button data-route="endorsements" class="nav-link">Endorsements</button>
+          <button data-route="cancellations" class="nav-link">Cancellations</button>
+          <button data-route="remarketing" class="nav-link">Remarketing</button>
+          <button data-route="workqueue" class="nav-link">Work Queue</button>
+          <button data-route="trainer" class="nav-link trainer-only hidden">Trainer QA</button>
+        </nav>
+      </div>
+      <div class="topbar-actions">
+        <div id="connection-badge" class="connection-badge">Local Mode</div>
+        <button id="quick-demo-btn" class="btn ghost">Load Demo Policies</button>
+        <button id="theme-toggle" class="btn icon" title="Toggle theme">◐</button>
+        <div class="user-chip">
+          <span id="user-initials">VA</span>
+          <div>
+            <strong id="user-name">VA User</strong>
+            <small id="user-role">Virtual Assistant</small>
+          </div>
+        </div>
+        <button id="logout-btn" class="btn subtle">Logout</button>
+      </div>
+    </header>
 
     <main class="main">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow" id="activeModuleLabel">Dashboard</p>
-          <h2 id="pageTitle">Carrier Operations Dashboard</h2>
-        </div>
-        <div class="topbar-actions">
-          <div class="global-search">
-            <input id="globalSearchInput" type="search" placeholder="Search policy # or insured name" />
-            <button id="globalSearchBtn" class="secondary-btn">Search</button>
-          </div>
-          <div class="user-pill">
-            <span id="sessionUserInitials">VA</span>
-            <div>
-              <strong id="sessionUserName">Trainee</strong>
-              <small id="sessionUserRole">VA Trainee</small>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <section id="noticeBar" class="notice hidden"></section>
-
-      <section id="dashboard" class="route active-route">
-        <div class="hero-panel">
-          <div>
-            <p class="eyebrow">Training Workspace</p>
-            <h3>Carrier-style operations, from quote intake to policy servicing.</h3>
-            <p>Start from blank forms, create training policies, search by policy number or insured name, process payments, endorsements, cancellations, ID cards, and remarketing tasks.</p>
-          </div>
-          <div class="hero-actions">
-            <button class="primary-btn" data-open-route="quote-center">Start New Quote</button>
-            <button class="secondary-btn" data-open-route="policy-search">Find Policy</button>
-          </div>
-        </div>
-
-        <div class="stat-grid" id="dashboardStats"></div>
-
-        <div class="two-col">
-          <article class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Operational Queue</p>
-                <h3>Open Training Tasks</h3>
-              </div>
-              <button class="ghost-btn" data-open-route="work-queue">Open Queue</button>
-            </div>
-            <div id="dashboardQueue" class="table-wrap compact-list"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Recent Activity</p>
-                <h3>Audit Trail</h3>
-              </div>
-              <button id="clearAuditBtn" class="danger-ghost">Clear</button>
-            </div>
-            <div id="dashboardAudit" class="timeline"></div>
-          </article>
-        </div>
-      </section>
-
-      <section id="policy-search" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Policy Inquiry</p>
-              <h3>Search Policy Number or Named Insured</h3>
-            </div>
-            <button class="secondary-btn" data-open-route="quote-center">Create New Quote</button>
-          </div>
-          <div class="search-strip">
-            <input id="policySearchInput" type="search" placeholder="Example: AUP-2026-000001 or Juan Dela Cruz" />
-            <button id="policySearchBtn" class="primary-btn">Search</button>
-            <button id="showAllPoliciesBtn" class="ghost-btn">Show All</button>
-          </div>
-          <p class="muted">No sample customers are included. Results appear only after trainees create and bind/save records.</p>
-          <div id="policySearchResults" class="results-grid"></div>
-        </div>
-        <div id="policyDetailPanel" class="panel hidden"></div>
-      </section>
-
-      <section id="quote-center" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">New Business</p>
-              <h3>Carrier Quote Intake</h3>
-              <p class="muted">All fields begin blank. VA must enter customer information, risk details, and underwriting answers.</p>
-            </div>
-            <div class="segmented">
-              <button class="segment active" data-quote-line="auto">Personal Auto</button>
-              <button class="segment" data-quote-line="home">Homeowners</button>
-            </div>
-          </div>
-
-          <div class="quote-layout">
-            <aside class="stepper" id="quoteStepper"></aside>
-            <form id="quoteForm" class="quote-form" novalidate></form>
-          </div>
-        </div>
-        <div id="quoteResultPanel" class="panel hidden"></div>
-      </section>
-
-      <section id="id-cards" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Policy Service</p>
-              <h3>Generate Auto Insurance ID Card</h3>
-            </div>
-            <button id="printIdCardBtn" class="secondary-btn">Print ID Card</button>
-          </div>
-          <div class="form-grid two">
-            <label>Auto Policy Number
-              <input id="idPolicyNo" type="text" placeholder="Search or enter policy number" />
-            </label>
-            <label>Vehicle Display
-              <select id="idVehicleSelect"><option value="">Select policy first</option></select>
-            </label>
-          </div>
-          <div class="actions-row">
-            <button id="loadIdPolicyBtn" class="primary-btn">Load Policy</button>
-            <button id="generateIdCardBtn" class="secondary-btn">Generate ID Card</button>
-          </div>
-          <div id="idCardOutput" class="id-card-placeholder">Load an active Auto policy to generate a printable training ID card.</div>
-        </div>
-      </section>
-
-      <section id="payments" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Billing</p>
-              <h3>Payment Center</h3>
-            </div>
-          </div>
-          <form id="paymentForm" class="form-card">
-            <div class="form-grid three">
-              <label>Policy Number
-                <input name="policyNo" type="text" required placeholder="Enter policy number" />
-              </label>
-              <label>Payment Type
-                <select name="paymentType" required>
-                  <option value="">Select</option>
-                  <option>Down Payment</option>
-                  <option>Installment Payment</option>
-                  <option>Renewal Payment</option>
-                  <option>Reinstatement Payment</option>
-                </select>
-              </label>
-              <label>Amount Received
-                <input name="amount" type="number" min="0" step="0.01" required placeholder="0.00" />
-              </label>
-              <label>Payment Method
-                <select name="method" required>
-                  <option value="">Select</option>
-                  <option>ACH / EFT</option>
-                  <option>Credit Card</option>
-                  <option>Debit Card</option>
-                  <option>Check</option>
-                  <option>Agency Sweep</option>
-                </select>
-              </label>
-              <label>Received Date
-                <input name="receivedDate" type="date" required />
-              </label>
-              <label>Confirmation Number
-                <input name="confirmation" type="text" placeholder="Carrier confirmation" />
-              </label>
-            </div>
-            <label>Billing Notes / Reminder
-              <textarea name="notes" rows="4" placeholder="Document who paid, amount, method, confirmation, and any remaining balance."></textarea>
-            </label>
-            <div class="checklist-box">
-              <strong>Payment Handling Checklist</strong>
-              <label><input type="checkbox" name="paymentChecklist" value="Verified named insured / authorized payer"> Verified named insured / authorized payer</label>
-              <label><input type="checkbox" name="paymentChecklist" value="Confirmed policy is active or eligible for payment"> Confirmed policy is active or eligible for payment</label>
-              <label><input type="checkbox" name="paymentChecklist" value="Documented confirmation number"> Documented confirmation number</label>
-              <label><input type="checkbox" name="paymentChecklist" value="Updated billing note in activity log"> Updated billing note in activity log</label>
-            </div>
-            <button class="primary-btn" type="submit">Post Training Payment</button>
-          </form>
-          <div id="paymentHistory" class="table-wrap"></div>
-        </div>
-      </section>
-
-      <section id="endorsements" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Policy Change</p>
-              <h3>Endorsement Processing</h3>
-            </div>
-            <button class="ghost-btn" data-open-route="sop-guide" data-guide-target="endorsement">View Process Guide</button>
-          </div>
-          <form id="endorsementForm" class="form-card">
-            <div class="form-grid three">
-              <label>Policy Number
-                <input name="policyNo" type="text" required placeholder="Enter active policy #" />
-              </label>
-              <label>Endorsement Type
-                <select name="endorsementType" required>
-                  <option value="">Select</option>
-                  <option>Named Insured Correction</option>
-                  <option>Mailing Address Change</option>
-                  <option>Garaging / Property Address Change</option>
-                  <option>Add Vehicle</option>
-                  <option>Delete Vehicle</option>
-                  <option>Add Driver</option>
-                  <option>Exclude Driver</option>
-                  <option>Coverage Change</option>
-                  <option>Add Mortgagee / Lienholder</option>
-                  <option>Remove Mortgagee / Lienholder</option>
-                  <option>Policy Document Request</option>
-                </select>
-              </label>
-              <label>Requested Effective Date
-                <input name="effectiveDate" type="date" required />
-              </label>
-            </div>
-            <label>Requested Change Details
-              <textarea name="changeDetails" required rows="5" placeholder="Enter exact request. Example: Add 2022 Toyota Camry VIN..., garaged at..., comp/collision deductibles..., lienholder..."></textarea>
-            </label>
-            <div class="form-grid two">
-              <label>Requested By
-                <select name="requestedBy" required>
-                  <option value="">Select</option>
-                  <option>Named Insured</option>
-                  <option>Spouse</option>
-                  <option>Agency CSR</option>
-                  <option>Mortgagee / Lienholder</option>
-                  <option>Producer</option>
-                </select>
-              </label>
-              <label>Processing Status
-                <select name="status" required>
-                  <option>Pending Review</option>
-                  <option>Submitted to Carrier</option>
-                  <option>Approved / Processed</option>
-                  <option>Needs More Information</option>
-                  <option>Declined by Underwriting</option>
-                </select>
-              </label>
-            </div>
-            <div class="checklist-box">
-              <strong>Endorsement Checklist</strong>
-              <label><input type="checkbox" name="endorsementChecklist" value="Verified authority to request change"> Verified authority to request change</label>
-              <label><input type="checkbox" name="endorsementChecklist" value="Confirmed effective date is valid"> Confirmed effective date is valid</label>
-              <label><input type="checkbox" name="endorsementChecklist" value="Collected required details/documents"> Collected required details/documents</label>
-              <label><input type="checkbox" name="endorsementChecklist" value="Reviewed premium impact or referral requirement"> Reviewed premium impact or referral requirement</label>
-              <label><input type="checkbox" name="endorsementChecklist" value="Documented notes clearly"> Documented notes clearly</label>
-            </div>
-            <button class="primary-btn" type="submit">Save Endorsement Activity</button>
-          </form>
-          <div id="endorsementHistory" class="table-wrap"></div>
-        </div>
-      </section>
-
-      <section id="cancellations" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Policy Service</p>
-              <h3>Policy Cancellation Workflow</h3>
-            </div>
-            <button class="ghost-btn" data-open-route="sop-guide" data-guide-target="cancellation">View Cancellation Guide</button>
-          </div>
-          <form id="cancellationForm" class="form-card">
-            <div class="form-grid three">
-              <label>Policy Number
-                <input name="policyNo" type="text" required placeholder="Enter policy #" />
-              </label>
-              <label>Cancellation Reason
-                <select name="reason" required>
-                  <option value="">Select</option>
-                  <option>Insured Request</option>
-                  <option>Rewritten / Replaced Coverage</option>
-                  <option>Sold Vehicle / Property</option>
-                  <option>Moved Out of State</option>
-                  <option>Non-Payment</option>
-                  <option>Underwriting Cancellation</option>
-                  <option>Duplicate Coverage</option>
-                </select>
-              </label>
-              <label>Requested Cancel Date
-                <input name="cancelDate" type="date" required />
-              </label>
-            </div>
-            <div class="form-grid two">
-              <label>Replacement Carrier / Policy #
-                <input name="replacement" type="text" placeholder="If applicable" />
-              </label>
-              <label>Refund Method
-                <select name="refundMethod">
-                  <option value="">Select</option>
-                  <option>Return to insured</option>
-                  <option>Return to mortgagee/lienholder</option>
-                  <option>Apply to agency balance</option>
-                  <option>No refund expected</option>
-                </select>
-              </label>
-            </div>
-            <label>Cancellation Notes
-              <textarea name="notes" rows="5" placeholder="Document request source, replacement proof, signed request status, and any follow-up needed."></textarea>
-            </label>
-            <div class="checklist-box">
-              <strong>Cancellation Checklist</strong>
-              <label><input type="checkbox" name="cancelChecklist" value="Verified authorized requestor"> Verified authorized requestor</label>
-              <label><input type="checkbox" name="cancelChecklist" value="Confirmed signed cancellation request if required"> Confirmed signed cancellation request if required</label>
-              <label><input type="checkbox" name="cancelChecklist" value="Verified replacement coverage to avoid lapse"> Verified replacement coverage to avoid lapse</label>
-              <label><input type="checkbox" name="cancelChecklist" value="Reviewed effective date and refund impact"> Reviewed effective date and refund impact</label>
-              <label><input type="checkbox" name="cancelChecklist" value="Documented cancellation confirmation"> Documented cancellation confirmation</label>
-            </div>
-            <button class="danger-btn" type="submit">Record Cancellation Request</button>
-          </form>
-          <div id="cancellationHistory" class="table-wrap"></div>
-        </div>
-      </section>
-
-      <section id="remarketing" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Renewal Strategy</p>
-              <h3>Quoting & Remarketing</h3>
-            </div>
-          </div>
-          <form id="remarketingForm" class="form-card">
-            <div class="form-grid three">
-              <label>Policy Number
-                <input name="policyNo" type="text" required placeholder="Existing policy #" />
-              </label>
-              <label>Remarketing Reason
-                <select name="reason" required>
-                  <option value="">Select</option>
-                  <option>Premium Increase</option>
-                  <option>Carrier Non-Renewal</option>
-                  <option>Coverage Gap</option>
-                  <option>Client Requested Review</option>
-                  <option>Better Coverage Opportunity</option>
-                  <option>Claims / Underwriting Concern</option>
-                </select>
-              </label>
-              <label>Target Effective / Renewal Date
-                <input name="targetDate" type="date" required />
-              </label>
-            </div>
-            <label>Updated Risk Information
-              <textarea name="riskUpdates" rows="5" placeholder="Capture updated drivers, vehicles, roof, claims, prior insurance, discounts, coverage needs, and missing data."></textarea>
-            </label>
-            <label>Target Carriers / Markets
-              <input name="targetMarkets" type="text" placeholder="Example: Preferred carrier, standard market, non-standard backup" />
-            </label>
-            <div class="checklist-box">
-              <strong>Remarketing Checklist</strong>
-              <label><input type="checkbox" name="remarketChecklist" value="Updated insured information"> Updated insured information</label>
-              <label><input type="checkbox" name="remarketChecklist" value="Reviewed prior claims/loss runs"> Reviewed prior claims/loss runs</label>
-              <label><input type="checkbox" name="remarketChecklist" value="Confirmed coverage limits and deductibles"> Confirmed coverage limits and deductibles</label>
-              <label><input type="checkbox" name="remarketChecklist" value="Checked carrier appetite"> Checked carrier appetite</label>
-              <label><input type="checkbox" name="remarketChecklist" value="Prepared follow-up task"> Prepared follow-up task</label>
-            </div>
-            <button class="primary-btn" type="submit">Create Remarketing Task</button>
-          </form>
-          <div id="remarketingHistory" class="table-wrap"></div>
-        </div>
-      </section>
-
-      <section id="work-queue" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Operations</p>
-              <h3>Work Queue</h3>
-            </div>
-            <div class="actions-row">
-              <button id="exportCsvBtn" class="secondary-btn">Export CSV</button>
-              <button id="exportJsonBtn" class="secondary-btn">Export Backup</button>
-              <label class="file-btn">Import Backup<input id="importJsonInput" type="file" accept=".json" /></label>
-            </div>
-          </div>
-          <div class="filter-row">
-            <select id="queueFilter">
-              <option value="all">All Open Items</option>
-              <option value="Quote">Quotes</option>
-              <option value="Endorsement">Endorsements</option>
-              <option value="Payment">Payments</option>
-              <option value="Cancellation">Cancellations</option>
-              <option value="Remarketing">Remarketing</option>
-            </select>
-            <input id="queueSearch" type="search" placeholder="Filter queue by insured, policy, type, status" />
-          </div>
-          <div id="workQueueTable" class="table-wrap"></div>
-        </div>
-      </section>
-
-      <section id="trainer-center" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Trainer/TL Tools</p>
-              <h3>Review VA Activity</h3>
-            </div>
-            <button id="downloadTrainerReportBtn" class="secondary-btn">Download Trainer Report CSV</button>
-          </div>
-          <div class="stat-grid" id="trainerStats"></div>
-          <div class="two-col">
-            <div class="form-card">
-              <h4>QA Review Entry</h4>
-              <form id="qaReviewForm" class="stack">
-                <label>Policy / Quote / Task Reference
-                  <input name="reference" type="text" required placeholder="Policy #, quote #, or task ID" />
-                </label>
-                <label>Accuracy Score
-                  <input name="score" type="number" min="0" max="100" required placeholder="0-100" />
-                </label>
-                <label>Feedback / Coaching Notes
-                  <textarea name="feedback" rows="5" required placeholder="Write specific coaching notes."></textarea>
-                </label>
-                <button class="primary-btn" type="submit">Save QA Review</button>
-              </form>
-            </div>
-            <div id="qaReviewsTable" class="table-wrap"></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="sop-guide" class="route">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Training SOP</p>
-              <h3>Carrier Portal Process Guide</h3>
-            </div>
-          </div>
-          <div class="guide-grid">
-            <article class="guide-card" id="guide-quote">
-              <h4>New Quote Process</h4>
-              <ol>
-                <li>Confirm named insured and effective date.</li>
-                <li>Enter all required risk details before rating.</li>
-                <li>Answer underwriting questions honestly and completely.</li>
-                <li>Review referral/decline flags before presenting quote.</li>
-                <li>Save quote or bind training policy only when data is complete.</li>
-              </ol>
-            </article>
-            <article class="guide-card" id="guide-endorsement">
-              <h4>How to Process Endorsement</h4>
-              <ol>
-                <li>Search and verify the active policy.</li>
-                <li>Confirm requestor authority and requested effective date.</li>
-                <li>Collect exact change details and required documents.</li>
-                <li>Review underwriting referral requirements and premium impact.</li>
-                <li>Submit, document confirmation, and create follow-up if pending.</li>
-              </ol>
-            </article>
-            <article class="guide-card" id="guide-cancellation">
-              <h4>How to Cancel Policy</h4>
-              <ol>
-                <li>Verify requestor identity and cancellation reason.</li>
-                <li>Confirm replacement coverage when applicable.</li>
-                <li>Secure signed cancellation request if required.</li>
-                <li>Choose correct cancellation effective date.</li>
-                <li>Document confirmation, refund details, and final status.</li>
-              </ol>
-            </article>
-            <article class="guide-card" id="guide-payment">
-              <h4>Payment Process</h4>
-              <ol>
-                <li>Verify active/eligible policy status.</li>
-                <li>Confirm payer authorization and payment amount.</li>
-                <li>Post method, date, and confirmation number.</li>
-                <li>Document remaining balance or next due date.</li>
-              </ol>
-            </article>
-            <article class="guide-card" id="guide-idcard">
-              <h4>Auto ID Card Process</h4>
-              <ol>
-                <li>Search active auto policy.</li>
-                <li>Confirm vehicle VIN and effective dates.</li>
-                <li>Generate printable ID card and document delivery.</li>
-              </ol>
-            </article>
-            <article class="guide-card" id="guide-remarketing">
-              <h4>Quoting & Remarketing Process</h4>
-              <ol>
-                <li>Review renewal reason and updated risk details.</li>
-                <li>Check carrier appetite and missing documents.</li>
-                <li>Build quote strategy and save follow-up task.</li>
-              </ol>
-            </article>
-          </div>
-        </div>
-      </section>
+      <section id="view"></section>
     </main>
   </div>
 
-  <template id="modalTemplate">
-    <div class="modal-backdrop">
-      <div class="modal-card">
-        <button class="modal-close" type="button">×</button>
-        <div class="modal-content"></div>
+  <template id="policy-card-template">
+    <article class="policy-card">
+      <div>
+        <p class="eyebrow policy-type"></p>
+        <h3 class="policy-number"></h3>
+        <p class="policy-insured"></p>
       </div>
-    </div>
+      <span class="status-pill policy-status"></span>
+    </article>
   </template>
 
-  <script src="data/carrier-rules.js"></script>
-  <script src="js/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/config.js" defer></script>
+  <script src="js/db.js" defer></script>
+  <script src="js/app.js" defer></script>
 </body>
 </html>

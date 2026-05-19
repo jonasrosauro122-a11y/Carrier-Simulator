@@ -1,38 +1,91 @@
-# LAVA CarrierOps Enterprise Training Simulator
+# LAVA CarrierOps Training Portal
 
-A standalone, Netlify-ready carrier portal simulator for VA insurance training.
+A standalone, Netlify-ready carrier operations simulator for VA training.
 
-## What is included
+## What this version includes
 
+- Top navigation carrier-style UI
 - VA login and Trainer/TL login
 - Trainer code: `LAVA2026`
 - Dashboard
-- Policy search by policy number or named insured
-- Blank carrier-style Auto and Home quoting workflows
-- Auto insurance ID card generator
-- Payment Center
-- Endorsement processing workflow
-- Policy cancellation workflow
-- Quoting and remarketing workflow
-- Work queue
-- Trainer QA review center
-- SOP/process guide
-- CSV export
-- JSON backup export/import
-- Dark mode
-- Local browser storage
+- Policy Search by policy number or named insured
+- New Quote for Auto and Home
+- Auto Insurance ID Card Generator
+- Payment Center with receipt download
+- Endorsement Processing with document upload/download
+- How to Process Endorsements guide
+- Policy Cancellation workflow with packet download
+- How to Cancel Policy guide
+- Quoting & Remarketing with carrier comparison
+- Work Queue
+- Trainer QA / audit logs
+- CSV and JSON exports
+- Supabase-ready storage and database setup
+- Local browser fallback when Supabase is not configured
 
-## GitHub + Netlify setup
+## GitHub + Netlify deployment
 
-1. Upload the folder contents to a GitHub repository.
-2. Your repository root must contain `index.html` directly.
-3. In Netlify, connect the GitHub repository.
-4. Build command: leave blank.
-5. Publish directory: `.`
-6. Deploy.
+Upload the folder contents to your GitHub repository. The root of your repository should show:
 
-## Important notes
+```text
+index.html
+css/
+js/
+data/
+images/
+docs/
+exports/
+netlify.toml
+_redirects
+README.md
+```
 
-This is a static training simulator. It does not connect to a real carrier, real payment processor, or real policy system. All records are stored in the browser using localStorage unless exported as JSON.
+In Netlify:
 
-To reset training data, clear browser site data/localStorage or use a fresh browser profile.
+```text
+Build command: leave blank
+Publish directory: .
+```
+
+No `npm install` and no build command are required.
+
+## Supabase setup
+
+1. Create a Supabase project.
+2. Go to Supabase SQL Editor.
+3. Open `docs/supabase-setup.sql`.
+4. Copy everything and run it.
+5. Go to Supabase Project Settings > API.
+6. Copy:
+   - Project URL
+   - anon public key
+7. Open `js/config.js`.
+8. Paste the values:
+
+```js
+window.LAVA_SUPABASE = {
+  url: "https://YOURPROJECT.supabase.co",
+  anonKey: "YOUR_ANON_PUBLIC_KEY",
+  bucket: "carrier-documents"
+};
+```
+
+9. Commit and push the update to GitHub.
+10. Redeploy Netlify.
+
+## Training demo policies
+
+The portal starts empty until you create a quote/policy or click **Load Demo Policies**.
+
+Demo search examples:
+
+```text
+LVA-AUTO-1001
+Jamie Rivera
+LVA-HOME-2001
+Morgan Santos
+```
+
+## Important security note
+
+The included Supabase SQL allows anonymous read/write because this is a static training simulator. Do not use real customer data. For production, use Supabase Auth, server-side validation, and stricter RLS policies.
