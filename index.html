@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Standalone carrier portal simulator for LAVA VA insurance training." />
+  <title>LAVA Carrier Portal Training Simulator</title>
+  <link rel="icon" href="images/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/portal.css" />
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <section id="loginScreen" class="login-screen">
+    <div class="login-art">
+      <div class="brand-lockup">
+        <img src="images/logo.svg" alt="LAVA logo" class="brand-mark" />
+        <div>
+          <strong>LAVA</strong>
+          <span>Carrier Training Portal</span>
+        </div>
+      </div>
+      <div class="hero-card">
+        <p class="eyebrow">Personal Lines Training Environment</p>
+        <h1>Practice quoting like a real carrier portal.</h1>
+        <p>VA trainees complete realistic Auto and Home quote applications, answer underwriting questions, generate carrier comparisons, and save quote history for coaching review.</p>
+        <div class="hero-grid">
+          <div><strong>7</strong><span>Training carriers</span></div>
+          <div><strong>2</strong><span>Quote lines</span></div>
+          <div><strong>Local</strong><span>Browser storage</span></div>
+        </div>
+      </div>
+    </div>
+
+    <form id="loginForm" class="login-panel" autocomplete="on">
+      <div class="login-icon">▦</div>
+      <h2>VA Training Login</h2>
+      <p>Enter your details to begin a training session. This is not a real carrier system.</p>
+
+      <label for="loginName">VA / Trainee full name <span>*</span></label>
+      <input id="loginName" name="loginName" type="text" placeholder="Example: Maria Santos" required minlength="2" />
+
+      <label for="loginEmail">LAVA email or training email</label>
+      <input id="loginEmail" name="loginEmail" type="email" placeholder="name@lavatraining.com" />
+
+      <label for="loginBatch">Training batch / team</label>
+      <input id="loginBatch" name="loginBatch" type="text" placeholder="Example: PL Rater Batch 01" />
+
+      <div class="login-row">
+        <label class="radio-card">
+          <input type="radio" name="role" value="VA" checked />
+          <span>VA Trainee</span>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="role" value="Trainer" />
+          <span>Trainer / TL</span>
+        </label>
+      </div>
+
+      <div id="trainerPassWrap" class="hidden">
+        <label for="trainerPass">Trainer access code</label>
+        <input id="trainerPass" type="password" placeholder="Enter trainer code" />
+        <small>Default training code: <b>LAVA2026</b></small>
+      </div>
+
+      <button class="primary-btn full" type="submit">Open Carrier Portal</button>
+      <button class="ghost-btn full" type="button" id="demoLoginBtn">Use Demo VA</button>
+
+      <p class="fine-print">Training simulation only. No real quotes, policies, bind requests, or customer transactions are created.</p>
+    </form>
+  </section>
+
+  <section id="portalShell" class="portal-shell hidden">
+    <aside class="sidebar">
+      <div class="side-brand">
+        <img src="images/logo.svg" alt="LAVA" />
+        <div><strong>LAVA Rater</strong><span>Carrier Portal</span></div>
+      </div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <button data-view="dashboard" class="active">Dashboard</button>
+        <button data-view="newQuote">New Business Quote</button>
+        <button data-view="workQueue">Quote Work Queue</button>
+        <button data-view="appetite">Carrier Appetite</button>
+        <button data-view="trainer">Trainer Dashboard</button>
+        <button data-view="guide">Training Guide</button>
+      </nav>
+      <div class="session-card">
+        <span>Signed in as</span>
+        <strong id="sideUserName">VA Trainee</strong>
+        <small id="sideUserMeta">Training Session</small>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div>
+          <p id="breadcrumb" class="breadcrumb">Dashboard</p>
+          <h1 id="pageTitle">Carrier Training Dashboard</h1>
+        </div>
+        <div class="top-actions">
+          <button id="themeToggle" class="icon-btn" type="button">◐</button>
+          <button id="printBtn" class="secondary-btn" type="button">Print / Save PDF</button>
+          <button id="logoutBtn" class="danger-btn" type="button">Logout</button>
+        </div>
+      </header>
+
+      <section id="dashboardView" class="view active"></section>
+      <section id="newQuoteView" class="view"></section>
+      <section id="workQueueView" class="view"></section>
+      <section id="appetiteView" class="view"></section>
+      <section id="trainerView" class="view"></section>
+      <section id="guideView" class="view"></section>
+    </main>
+  </section>
+
+  <script src="data/carriers.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
