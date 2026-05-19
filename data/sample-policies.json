@@ -1,0 +1,14 @@
+[
+  {
+    "policy_number": "LVA-AUTO-1001",
+    "policy_type": "Auto",
+    "named_insured": "Jamie Rivera",
+    "status": "Active"
+  },
+  {
+    "policy_number": "LVA-HOME-2001",
+    "policy_type": "Home",
+    "named_insured": "Morgan Santos",
+    "status": "Active"
+  }
+]
