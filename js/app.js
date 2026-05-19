@@ -1,784 +1,1451 @@
-(() => {
-  const KEY = 'lava_carrierops_enterprise_v1';
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-  const rules = window.CARRIER_RULES || {};
+(function () {
+  "use strict";
 
-  const baseState = {
-    session: null,
-    policies: [],
-    quotes: [],
-    payments: [],
-    endorsements: [],
-    cancellations: [],
-    remarketing: [],
-    tasks: [],
-    audit: [],
-    logins: [],
-    qaReviews: [],
-    settings: { dark: false },
-    counters: { auto: 0, home: 0, quote: 0, task: 0 }
+  const store = new window.CarrierStore();
+  const state = {
+    user: null,
+    route: "dashboard",
+    activePolicy: null,
+    searchResults: [],
+    quoteResult: null,
+    lastReceipt: null,
+    lastEndorsement: null,
+    lastCancellation: null,
+    lastRemarketing: null
   };
 
-  let state = loadState();
-  let currentRoute = 'dashboard';
-  let currentLine = 'auto';
-  let currentStep = 0;
-  let currentQuote = blankQuote('auto');
-  let lastQuoteResult = null;
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  document.addEventListener('DOMContentLoaded', init);
+  const formatMoney = (value) => Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-US") : "—";
+  const today = () => new Date().toISOString().slice(0, 10);
+  const addYears = (dateString, years) => {
+    const d = dateString ? new Date(`${dateString}T12:00:00`) : new Date();
+    d.setFullYear(d.getFullYear() + years);
+    return d.toISOString().slice(0, 10);
+  };
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  const initials = (name) => String(name || "VA").split(/\s+/).filter(Boolean).slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 
-  function init() {
-    bindLogin();
-    bindShellEvents();
-    bindModuleForms();
-    renderSession();
-    renderQuoteCenter();
-    if (state.session) showApp();
-    else showLogin();
-  }
-
-  function loadState() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY));
-      return mergeDeep(structuredClone(baseState), saved || {});
-    } catch (e) {
-      return structuredClone(baseState);
-    }
-  }
-  function saveState() { localStorage.setItem(KEY, JSON.stringify(state)); }
-  function mergeDeep(target, source) {
-    Object.keys(source || {}).forEach(k => {
-      if (source[k] && typeof source[k] === 'object' && !Array.isArray(source[k])) {
-        target[k] = mergeDeep(target[k] || {}, source[k]);
-      } else target[k] = source[k];
-    });
-    return target;
+  function makeId(prefix) {
+    return `${prefix}-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 899999)}`;
   }
 
-  function showLogin() {
-    $('#loginScreen').classList.remove('hidden');
-    $('#appShell').classList.add('hidden');
-  }
-  function showApp() {
-    $('#loginScreen').classList.add('hidden');
-    $('#appShell').classList.remove('hidden');
-    $('#appShell').classList.toggle('dark', !!state.settings.dark);
-    renderSession();
-    renderAll();
+  function getUser() {
+    return JSON.parse(localStorage.getItem("lava_carrierops_session") || "null");
   }
 
-  function bindLogin() {
-    $('#loginRole').addEventListener('change', e => {
-      $('#trainerCodeRow').classList.toggle('hidden', e.target.value !== 'Trainer');
-    });
-    $('#loginForm').addEventListener('submit', e => {
-      e.preventDefault();
-      const name = $('#loginName').value.trim();
-      const role = $('#loginRole').value;
-      const code = $('#trainerCode').value.trim();
-      const team = $('#loginTeam').value.trim();
-      if (!name) return notice('Please enter trainee name.', 'warning');
-      if (role === 'Trainer' && code !== rules.trainerCode) return notice('Invalid Trainer/TL access code.', 'danger');
-      state.session = { name, role, team, loginAt: new Date().toISOString() };
-      state.logins.unshift({ name, role, team, loginAt: new Date().toISOString() });
-      addAudit('Login', `${name} entered as ${role}${team ? ` (${team})` : ''}.`);
-      saveState();
-      showApp();
-      notice(`Welcome, ${name}. Portal is ready.`, 'success');
-    });
+  function setUser(user) {
+    localStorage.setItem("lava_carrierops_session", JSON.stringify(user));
+    state.user = user;
   }
 
-  function bindShellEvents() {
-    $$('.nav-item').forEach(btn => btn.addEventListener('click', () => openRoute(btn.dataset.route)));
-    document.body.addEventListener('click', e => {
-      const routeBtn = e.target.closest('[data-open-route]');
-      if (routeBtn) {
-        openRoute(routeBtn.dataset.openRoute);
-        if (routeBtn.dataset.guideTarget) setTimeout(() => highlightGuide(routeBtn.dataset.guideTarget), 60);
-      }
-    });
-    $('#logoutBtn').addEventListener('click', () => {
-      if (state.session) addAudit('Logout', `${state.session.name} logged out.`);
-      state.session = null;
-      saveState();
-      showLogin();
-    });
-    $('#darkModeBtn').addEventListener('click', () => {
-      state.settings.dark = !state.settings.dark;
-      saveState();
-      $('#appShell').classList.toggle('dark', state.settings.dark);
-    });
-    $('#globalSearchBtn').addEventListener('click', () => {
-      const q = $('#globalSearchInput').value.trim();
-      openRoute('policy-search');
-      $('#policySearchInput').value = q;
-      searchPolicies(q);
-    });
-    $('#globalSearchInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') $('#globalSearchBtn').click();
-    });
-    $('#policySearchBtn').addEventListener('click', () => searchPolicies($('#policySearchInput').value.trim()));
-    $('#policySearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#policySearchBtn').click(); });
-    $('#showAllPoliciesBtn').addEventListener('click', () => searchPolicies(''));
-    $('#clearAuditBtn').addEventListener('click', () => {
-      if (confirm('Clear audit trail in this browser?')) {
-        state.audit = [];
-        saveState();
-        renderDashboard();
-      }
-    });
-    $('#queueFilter').addEventListener('change', renderWorkQueue);
-    $('#queueSearch').addEventListener('input', renderWorkQueue);
-    $('#exportCsvBtn').addEventListener('click', exportCsv);
-    $('#exportJsonBtn').addEventListener('click', exportJsonBackup);
-    $('#importJsonInput').addEventListener('change', importJsonBackup);
-    $('#downloadTrainerReportBtn').addEventListener('click', exportTrainerReport);
+  function toast(message, type = "info") {
+    const stack = $("#toast-stack");
+    const node = document.createElement("div");
+    node.className = `toast ${type}`;
+    node.innerHTML = esc(message);
+    stack.appendChild(node);
+    setTimeout(() => node.remove(), 4500);
   }
 
-  function bindModuleForms() {
-    $('#paymentForm').addEventListener('submit', savePayment);
-    $('#endorsementForm').addEventListener('submit', saveEndorsement);
-    $('#cancellationForm').addEventListener('submit', saveCancellation);
-    $('#remarketingForm').addEventListener('submit', saveRemarketing);
-    $('#qaReviewForm').addEventListener('submit', saveQaReview);
-    $('#loadIdPolicyBtn').addEventListener('click', loadIdPolicy);
-    $('#generateIdCardBtn').addEventListener('click', generateIdCard);
-    $('#printIdCardBtn').addEventListener('click', () => window.print());
-  }
-
-  function openRoute(route) {
-    currentRoute = route;
-    $$('.route').forEach(r => r.classList.remove('active-route'));
-    $('#' + route).classList.add('active-route');
-    $$('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.route === route));
-    const titles = {
-      dashboard: 'Carrier Operations Dashboard',
-      'policy-search': 'Policy Search',
-      'quote-center': 'New Business Quote Center',
-      'id-cards': 'Auto Insurance ID Card Generator',
-      payments: 'Payment Center',
-      endorsements: 'Endorsement Processing',
-      cancellations: 'Policy Cancellation Workflow',
-      remarketing: 'Quoting & Remarketing',
-      'work-queue': 'Work Queue',
-      'trainer-center': 'Trainer Center',
-      'sop-guide': 'SOP Guide'
-    };
-    $('#pageTitle').textContent = titles[route] || 'CarrierOps';
-    $('#activeModuleLabel').textContent = route.replace(/-/g, ' ');
-    renderAll();
-  }
-
-  function renderAll() {
-    renderSession();
-    renderDashboard();
-    renderPolicySearchDefault();
-    renderPaymentHistory();
-    renderEndorsementHistory();
-    renderCancellationHistory();
-    renderRemarketingHistory();
-    renderWorkQueue();
-    renderTrainerCenter();
-    renderIdPolicyOptions();
-  }
-
-  function renderSession() {
-    if (!state.session) return;
-    $('#sessionUserName').textContent = state.session.name;
-    $('#sessionUserRole').textContent = state.session.role;
-    $('#sessionUserInitials').textContent = initials(state.session.name);
-    $$('.trainer-only').forEach(el => el.classList.toggle('hidden', state.session.role !== 'Trainer'));
-  }
-
-  function notice(msg, type = 'info') {
-    const bar = $('#noticeBar');
-    bar.textContent = msg;
-    bar.className = `notice ${type}`;
-    bar.classList.remove('hidden');
-    clearTimeout(window.__noticeTimer);
-    window.__noticeTimer = setTimeout(() => bar.classList.add('hidden'), 5200);
-  }
-
-  function addAudit(type, message) {
-    state.audit.unshift({ id: uid('AUD'), type, message, user: state.session?.name || 'System', at: new Date().toISOString() });
-    state.audit = state.audit.slice(0, 200);
-    saveState();
-  }
-  function addTask(type, reference, insured, description, status = 'Open') {
-    state.counters.task += 1;
-    const task = { id: `TASK-${String(state.counters.task).padStart(5, '0')}`, type, reference, insured, description, status, owner: state.session?.name || 'Unassigned', createdAt: new Date().toISOString() };
-    state.tasks.unshift(task);
-    saveState();
-    return task;
-  }
-
-  function renderDashboard() {
-    const activePolicies = state.policies.filter(p => p.status === 'Active').length;
-    const openTasks = state.tasks.filter(t => t.status !== 'Closed' && t.status !== 'Completed').length;
-    const pendingEnd = state.endorsements.filter(e => !/Approved|Declined/.test(e.status)).length;
-    const stats = [
-      ['Active Policies', activePolicies],
-      ['Saved Quotes', state.quotes.length],
-      ['Open Queue', openTasks],
-      ['Pending Endorsements', pendingEnd]
-    ];
-    $('#dashboardStats').innerHTML = stats.map(([label, value]) => `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
-    const open = state.tasks.filter(t => t.status !== 'Closed' && t.status !== 'Completed').slice(0, 8);
-    $('#dashboardQueue').innerHTML = open.length ? table(['Type','Reference','Insured','Status'], open.map(t => [t.type, t.reference || '-', t.insured || '-', statusPill(t.status)])) : empty('No open training tasks yet. Create a quote, payment, endorsement, cancellation, or remarketing task.');
-    $('#dashboardAudit').innerHTML = state.audit.slice(0, 15).map(a => `<div class="timeline-item"><strong>${a.type}</strong><span>${escapeHtml(a.message)}</span><small>${formatDateTime(a.at)} · ${escapeHtml(a.user)}</small></div>`).join('') || empty('No activity yet.');
-  }
-
-  function renderPolicySearchDefault() {
-    if (currentRoute !== 'policy-search') return;
-    if (!$('#policySearchResults').innerHTML.trim()) searchPolicies('');
-  }
-  function searchPolicies(query) {
-    const q = (query || '').toLowerCase();
-    const results = state.policies.filter(p => !q || p.policyNo.toLowerCase().includes(q) || p.insuredName.toLowerCase().includes(q));
-    const container = $('#policySearchResults');
-    $('#policyDetailPanel').classList.add('hidden');
-    if (!results.length) {
-      container.innerHTML = empty('No policies found. This portal has no sample customer data. Create and bind a training quote first.');
-      return;
-    }
-    container.innerHTML = results.map(policyCard).join('');
-    $$('.view-policy-btn', container).forEach(btn => btn.addEventListener('click', () => showPolicyDetail(btn.dataset.policy)));
-    $$('.service-policy-btn', container).forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.service;
-        const p = findPolicy(btn.dataset.policy);
-        openRoute(target);
-        prefillServicePolicy(target, p?.policyNo || '');
-      });
-    });
-  }
-
-  function policyCard(p) {
-    return `<article class="result-card">
-      <h4>${escapeHtml(p.insuredName)}</h4>
-      <div class="premium">${escapeHtml(p.policyNo)}</div>
-      <div class="meta-row"><span class="pill info">${p.lineLabel}</span>${statusPill(p.status)}<span class="pill">Eff ${formatDate(p.effectiveDate)}</span></div>
-      <p class="muted">Premium: ${money(p.premium)} · Exp: ${formatDate(p.expirationDate)}</p>
-      <div class="actions-row">
-        <button class="secondary-btn view-policy-btn" data-policy="${p.policyNo}">View</button>
-        ${p.line === 'auto' ? `<button class="ghost-btn service-policy-btn" data-service="id-cards" data-policy="${p.policyNo}">ID Card</button>` : ''}
-        <button class="ghost-btn service-policy-btn" data-service="payments" data-policy="${p.policyNo}">Payment</button>
-        <button class="ghost-btn service-policy-btn" data-service="endorsements" data-policy="${p.policyNo}">Endorse</button>
-        <button class="danger-ghost service-policy-btn" data-service="cancellations" data-policy="${p.policyNo}">Cancel</button>
-      </div>
-    </article>`;
-  }
-
-  function showPolicyDetail(policyNo) {
-    const p = findPolicy(policyNo);
-    if (!p) return;
-    const panel = $('#policyDetailPanel');
-    panel.classList.remove('hidden');
-    const data = p.data || {};
-    panel.innerHTML = `<div class="panel-header"><div><p class="eyebrow">Policy Detail</p><h3>${escapeHtml(p.policyNo)} · ${escapeHtml(p.insuredName)}</h3></div><button class="secondary-btn" id="printPolicyDetailBtn">Print</button></div>
-      <div class="summary-grid">
-        ${summaryItem('Line', p.lineLabel)}${summaryItem('Status', p.status)}${summaryItem('Effective', formatDate(p.effectiveDate))}${summaryItem('Expiration', formatDate(p.expirationDate))}${summaryItem('Premium', money(p.premium))}${summaryItem('Phone', data.insured?.phone || '-')}${summaryItem('Email', data.insured?.email || '-')}${summaryItem('Address', mailingAddress(data))}
-      </div>
-      <h4>Risk Snapshot</h4>
-      ${riskSnapshot(p)}
-      <h4>Related Activity</h4>
-      ${relatedActivityTable(p.policyNo)}`;
-    $('#printPolicyDetailBtn').addEventListener('click', () => window.print());
-  }
-
-  function riskSnapshot(p) {
-    if (p.line === 'auto') {
-      const d = p.data || {};
-      return `<div class="summary-grid">${summaryItem('Drivers', (d.drivers || []).length)}${summaryItem('Vehicles', (d.vehicles || []).length)}${summaryItem('BI Limit', d.coverage?.bodilyInjury || '-')}${summaryItem('PD Limit', d.coverage?.propertyDamage || '-')}</div>`;
-    }
-    const d = p.data || {};
-    return `<div class="summary-grid">${summaryItem('Year Built', d.property?.yearBuilt || '-')}${summaryItem('Roof Year', d.construction?.roofYear || '-')}${summaryItem('Dwelling', money(Number(d.coverage?.dwelling || 0)))}${summaryItem('Deductible', d.coverage?.deductible || '-')}</div>`;
-  }
-  function relatedActivityTable(policyNo) {
-    const rows = [
-      ...state.payments.filter(x => x.policyNo === policyNo).map(x => ['Payment', x.paymentType, money(Number(x.amount)), formatDateTime(x.createdAt)]),
-      ...state.endorsements.filter(x => x.policyNo === policyNo).map(x => ['Endorsement', x.endorsementType, x.status, formatDateTime(x.createdAt)]),
-      ...state.cancellations.filter(x => x.policyNo === policyNo).map(x => ['Cancellation', x.reason, x.status, formatDateTime(x.createdAt)]),
-      ...state.remarketing.filter(x => x.policyNo === policyNo).map(x => ['Remarketing', x.reason, x.status, formatDateTime(x.createdAt)])
-    ];
-    return rows.length ? table(['Activity','Type','Status/Amount','Date'], rows) : empty('No servicing activity recorded yet.');
-  }
-
-  function prefillServicePolicy(route, policyNo) {
-    const map = {
-      payments: '#paymentForm [name="policyNo"]', endorsements: '#endorsementForm [name="policyNo"]', cancellations: '#cancellationForm [name="policyNo"]', remarketing: '#remarketingForm [name="policyNo"]', 'id-cards': '#idPolicyNo'
-    };
-    const input = $(map[route]);
-    if (input) input.value = policyNo;
-  }
-
-  function renderQuoteCenter() {
-    $$('.segment').forEach(btn => btn.addEventListener('click', () => {
-      gatherQuoteForm();
-      currentLine = btn.dataset.quoteLine;
-      currentStep = 0;
-      currentQuote = blankQuote(currentLine);
-      lastQuoteResult = null;
-      $$('.segment').forEach(b => b.classList.toggle('active', b === btn));
-      $('#quoteResultPanel').classList.add('hidden');
-      buildQuoteForm();
-    }));
-    buildQuoteForm();
-  }
-
-  function blankQuote(line) {
-    return { line, account: {}, insured: {}, address: {}, property: {}, construction: {}, prior: {}, drivers: [], vehicles: [], coverage: {}, hazards: {}, uw: {}, docs: {}, notes: '' };
-  }
-
-  function buildQuoteForm() {
-    const steps = rules.quoteSteps[currentLine];
-    $('#quoteStepper').innerHTML = steps.map((s, i) => `<button class="step-btn ${i === currentStep ? 'active' : ''}" data-step="${i}"><span>${i+1}</span>${s.label}</button>`).join('');
-    $('#quoteForm').innerHTML = currentLine === 'auto' ? autoFormHtml() : homeFormHtml();
-    bindQuoteFormEvents();
-    showStep(currentStep);
-  }
-
-  function bindQuoteFormEvents() {
-    $$('.step-btn').forEach(btn => btn.addEventListener('click', () => { gatherQuoteForm(); showStep(Number(btn.dataset.step)); }));
-    $$('.prev-step').forEach(btn => btn.addEventListener('click', () => { gatherQuoteForm(); showStep(Math.max(0, currentStep - 1)); }));
-    $$('.next-step').forEach(btn => btn.addEventListener('click', () => { gatherQuoteForm(); showStep(Math.min(rules.quoteSteps[currentLine].length - 1, currentStep + 1)); }));
-    $$('.rate-quote-btn').forEach(btn => btn.addEventListener('click', rateQuote));
-    $$('.reset-quote-btn').forEach(btn => btn.addEventListener('click', () => {
-      if (confirm('Clear current blank quote form?')) { currentQuote = blankQuote(currentLine); lastQuoteResult = null; buildQuoteForm(); $('#quoteResultPanel').classList.add('hidden'); }
-    }));
-    $$('.add-driver-btn').forEach(btn => btn.addEventListener('click', () => { gatherQuoteForm(); currentQuote.drivers.push({}); buildQuoteForm(); showStepByKey('drivers'); }));
-    $$('.add-vehicle-btn').forEach(btn => btn.addEventListener('click', () => { gatherQuoteForm(); currentQuote.vehicles.push({}); buildQuoteForm(); showStepByKey('vehicles'); }));
-    $$('.remove-entry').forEach(btn => btn.addEventListener('click', () => {
-      gatherQuoteForm();
-      currentQuote[btn.dataset.collection].splice(Number(btn.dataset.index), 1);
-      buildQuoteForm(); showStepByKey(btn.dataset.collection);
-    }));
-    $('#quoteForm').addEventListener('input', debounce(() => gatherQuoteForm(), 250));
-  }
-
-  function showStep(index) {
-    currentStep = index;
-    $$('.step-section').forEach((sec, i) => sec.classList.toggle('active', i === index));
-    $$('.step-btn').forEach((btn, i) => btn.classList.toggle('active', i === index));
-  }
-  function showStepByKey(key) {
-    const idx = rules.quoteSteps[currentLine].findIndex(s => s.key === key);
-    showStep(Math.max(0, idx));
-  }
-
-  function field(label, path, type = 'text', options = null, placeholder = '', required = false) {
-    const val = getPath(currentQuote, path) ?? '';
-    const req = required ? 'required' : '';
-    if (options) return `<label>${label}${required ? ' *' : ''}<select data-path="${path}" ${req}><option value="">Select</option>${options.map(o => `<option ${String(val) === String(o) ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
-    if (type === 'textarea') return `<label>${label}${required ? ' *' : ''}<textarea data-path="${path}" rows="4" placeholder="${placeholder}" ${req}>${escapeHtml(val)}</textarea></label>`;
-    return `<label>${label}${required ? ' *' : ''}<input data-path="${path}" type="${type}" value="${escapeAttr(val)}" placeholder="${placeholder}" ${req}></label>`;
-  }
-  function yesNo(label, path) { return field(label, path, 'text', ['No','Yes'], '', true); }
-  function check(label, path) {
-    const val = !!getPath(currentQuote, path);
-    return `<label><input data-path="${path}" type="checkbox" ${val ? 'checked' : ''}> ${label}</label>`;
-  }
-  function wizardActions(isLast = false) {
-    return `<div class="wizard-actions"><button type="button" class="ghost-btn prev-step">Back</button><div class="actions-row"><button type="button" class="danger-ghost reset-quote-btn">Clear Form</button>${isLast ? '<button type="button" class="primary-btn rate-quote-btn">Run Carrier Rating</button>' : '<button type="button" class="primary-btn next-step">Continue</button>'}</div></div>`;
-  }
-  function section(key, title, desc, content, isLast = false) {
-    return `<section class="step-section" data-step-key="${key}"><div class="section-title"><div><h4>${title}</h4><p>${desc}</p></div></div>${content}${wizardActions(isLast)}</section>`;
-  }
-
-  function autoFormHtml() {
-    const states = rules.states || [];
-    return [
-      section('account','Account Setup','Carrier transaction and agency workflow information.', `<div class="form-grid three">${field('Transaction Type','account.transactionType','text',['New Business Quote','Rewrite','Remarket Quote'],'',true)}${field('Requested Effective Date','account.effectiveDate','date',null,'',true)}${field('Policy Term','account.term','text',['6 Months','12 Months'],'',true)}${field('Agency Code','account.agencyCode','text',null,'Example: LAVA-PL','')}${field('Producer / CSR','account.producer','text',null,'Producer or VA name','')}${field('Quote Source','account.source','text',['Phone','Email','Website','Renewal Review','Walk-in'],'',true)}</div>`),
-      section('insured','Named Insured','Enter the person/entity that will be listed on the policy.', `<div class="form-grid three">${field('First Name','insured.firstName','text',null,'',true)}${field('Last Name','insured.lastName','text',null,'',true)}${field('Date of Birth','insured.dob','date',null,'',true)}${field('Email','insured.email','email',null,'insured@email.com',true)}${field('Phone','insured.phone','tel',null,'',true)}${field('Marital Status','insured.maritalStatus','text',['Single','Married','Divorced','Widowed'],'',true)}${field('Occupation','insured.occupation','text',null,'')}${field('Residence Type','insured.residenceType','text',['Own Home','Rent','Live with Family','Condo Owner'],'')}${field('Credit / Insurance Score Tier','insured.scoreTier','text',['Preferred','Standard','Needs Review','Unknown'],'')}</div>`),
-      section('address','Mailing and Garaging Address','Carrier systems usually require a mailing address and garaging location.', `<div class="form-grid three">${field('Mailing Street','address.mailingStreet','text',null,'',true)}${field('City','address.city','text',null,'',true)}${field('State','address.state','text',states,'',true)}${field('ZIP','address.zip','text',null,'',true)}${field('County','address.county','text',null,'')}${field('Is garaging address same as mailing?','address.garageSame','text',['Yes','No'],'',true)}${field('Garaging Street','address.garageStreet','text',null,'Required if different')}${field('Garaging City','address.garageCity','text',null,'')}${field('Garaging ZIP','address.garageZip','text',null,'')}</div>`),
-      section('prior','Prior Insurance','Ask exact carrier-style prior policy and lapse questions.', `<div class="form-grid three">${field('Currently Insured?','prior.currentlyInsured','text',['Yes','No'],'',true)}${field('Current / Prior Carrier','prior.currentCarrier','text',null,'',true)}${field('Prior Policy Number','prior.priorPolicyNo','text',null,'')}${field('Years Continuous Insurance','prior.continuousYears','number',null,'0',true)}${field('Lapse Days','prior.lapseDays','number',null,'0',true)}${field('Prior BI Limits','prior.priorBI','text',['State Minimum','25/50','50/100','100/300','250/500','Unknown'],'',true)}${yesNo('Prior cancellation or non-renewal?','prior.cancelNonRenewal')}${yesNo('Cancelled for non-payment in last 36 months?','prior.cancelNonPay')}${yesNo('Any coverage gap within last 12 months?','prior.coverageGap')}</div>`),
-      section('drivers','Drivers / Household Members','Add all licensed drivers and household members required by carrier underwriting.', `${driverEntriesHtml()}<div class="inline-table-actions"><button type="button" class="secondary-btn add-driver-btn">Add Driver / Household Member</button></div>`),
-      section('vehicles','Vehicles','Add each vehicle and required garaging/usage details.', `${vehicleEntriesHtml()}<div class="inline-table-actions"><button type="button" class="secondary-btn add-vehicle-btn">Add Vehicle</button></div>`),
-      section('coverage','Coverage Selection','Select requested limits, deductibles, and optional coverages.', `<div class="form-grid three">${field('Bodily Injury Liability','coverage.bodilyInjury','text',rules.autoCoverages.bodilyInjury,'',true)}${field('Property Damage Liability','coverage.propertyDamage','text',rules.autoCoverages.propertyDamage,'',true)}${field('Uninsured / Underinsured Motorist','coverage.umUim','text',rules.autoCoverages.uninsuredMotorist,'',true)}${field('Medical Payments','coverage.medPay','text',rules.autoCoverages.medPay,'',true)}${field('Comprehensive Deductible','coverage.compDeductible','text',rules.autoCoverages.deductibles,'',true)}${field('Collision Deductible','coverage.collDeductible','text',rules.autoCoverages.deductibles,'',true)}${field('Rental Reimbursement','coverage.rental','text',['Reject','30/900','40/1200','50/1500'],'',true)}${field('Roadside Assistance','coverage.roadside','text',['Reject','Accept'],'',true)}${field('Paperless / AutoPay Discount','coverage.billingDiscount','text',['None','Paperless','AutoPay','Paperless + AutoPay'],'')}</div>`),
-      section('uw','Carrier Underwriting Questions','These questions drive referral, decline, and training QA flags.', `<div class="inline-checks">${check('Any driver has DUI, reckless driving, or major violation in last 5 years','uw.majorViolation')}${check('Any driver requires SR-22 / FR-44 filing','uw.sr22')}${check('Any suspended, revoked, or international-only license','uw.licenseIssue')}${check('Vehicle used for delivery, rideshare, or livery','uw.deliveryRideshare')}${check('Business use beyond commuting','uw.businessUse')}${check('Any excluded driver requested','uw.excludedDriver')}${check('Any undisclosed household member','uw.undisclosedHousehold')}${check('Any vehicle with salvage, rebuilt, or branded title','uw.salvageTitle')}${check('Any custom equipment over $2,500','uw.customEquipment')}${check('Any prior fraud, material misrepresentation, or policy voidance','uw.fraudConcern')}</div><div class="checklist-box"><strong>Required Documents</strong>${check('Current declarations page collected','docs.decPage')}${check('Driver license information verified','docs.driverLicense')}${check('VIN verified','docs.vinVerified')}${check('Signed UM/UIM rejection if applicable','docs.umRejection')}${check('Payment method discussed','docs.paymentDiscussed')}</div>${field('Underwriting Notes','notes','textarea',null,'Write details that a CSR would document in the carrier portal.')}`, true),
-      section('review','Review & Rate','Review missing data and run simulated carrier rating.', `<div id="quoteReviewBox">${quoteReviewHtml()}</div>`, true)
-    ].join('');
-  }
-
-  function driverEntriesHtml() {
-    if (!currentQuote.drivers.length) return `<div class="empty">No drivers added yet. Real carrier portals require at least one rated driver.</div>`;
-    return currentQuote.drivers.map((d, i) => `<div class="entry-card"><div class="entry-card-header"><strong>Driver / Household Member ${i+1}</strong><button type="button" class="remove-entry" data-collection="drivers" data-index="${i}">Remove</button></div><div class="form-grid three">
-      ${collField('First Name','drivers',i,'firstName','text','',true)}${collField('Last Name','drivers',i,'lastName','text','',true)}${collField('DOB','drivers',i,'dob','date','',true)}${collSelect('Relationship','drivers',i,'relationship',['Named Insured','Spouse','Child','Parent','Roommate','Other Household Member'],true)}${collSelect('License Status','drivers',i,'licenseStatus',['Valid','Permit','Suspended','Revoked','International','Unlicensed Household Member'],true)}${collField('License State','drivers',i,'licenseState','text','',true)}${collField('Years Licensed','drivers',i,'yearsLicensed','number','0',true)}${collField('Accidents Last 5 Years','drivers',i,'accidents','number','0',true)}${collField('Violations Last 5 Years','drivers',i,'violations','number','0',true)}${collSelect('Driver Type','drivers',i,'driverType',['Rated','Excluded','Non-Driver','Deferred'],true)}${collSelect('Good Student','drivers',i,'goodStudent',['No','Yes','N/A'])}${collSelect('Defensive Driver','drivers',i,'defensiveDriver',['No','Yes'])}
-    </div></div>`).join('');
-  }
-  function vehicleEntriesHtml() {
-    if (!currentQuote.vehicles.length) return `<div class="empty">No vehicles added yet. Add a vehicle to rate an Auto quote.</div>`;
-    return currentQuote.vehicles.map((v, i) => `<div class="entry-card"><div class="entry-card-header"><strong>Vehicle ${i+1}</strong><button type="button" class="remove-entry" data-collection="vehicles" data-index="${i}">Remove</button></div><div class="form-grid three">
-      ${collField('VIN','vehicles',i,'vin','text','17-character VIN',true)}${collField('Year','vehicles',i,'year','number','',true)}${collField('Make','vehicles',i,'make','text','',true)}${collField('Model','vehicles',i,'model','text','',true)}${collSelect('Vehicle Use','vehicles',i,'usage',['Pleasure','Commute','Business','Farm','Delivery/Rideshare'],true)}${collField('Annual Mileage','vehicles',i,'annualMiles','number','',true)}${collSelect('Ownership','vehicles',i,'ownership',['Owned','Financed','Leased'],true)}${collField('Lienholder / Lessor','vehicles',i,'lienholder','text','If applicable')}${collSelect('Comprehensive/Collision','vehicles',i,'physicalDamage',['Liability Only','Comp Only','Comp + Collision'],true)}${collSelect('Anti-Theft','vehicles',i,'antiTheft',['None','Factory','Passive Alarm','Tracking Device'])}${collSelect('Garaging Confirmation','vehicles',i,'garagingConfirmed',['Yes','No'],true)}${collField('Primary Driver','vehicles',i,'primaryDriver','text','Driver name')}
-    </div></div>`).join('');
-  }
-
-  function homeFormHtml() {
-    const states = rules.states || [];
-    return [
-      section('account','Account Setup','Carrier transaction and policy term details.', `<div class="form-grid three">${field('Transaction Type','account.transactionType','text',['New Business Quote','Rewrite','Remarket Quote'],'',true)}${field('Requested Effective Date','account.effectiveDate','date',null,'',true)}${field('Policy Form','account.form','text',['HO3 Owner Occupied','HO5 Enhanced','HO6 Condo','DP3 Rental Dwelling'],'',true)}${field('Agency Code','account.agencyCode','text',null,'Example: LAVA-HO','')}${field('Producer / CSR','account.producer','text',null,'')}${field('Quote Source','account.source','text',['Phone','Email','Website','Renewal Review','Referral'],'',true)}</div>`),
-      section('insured','Named Insured','Enter customer contact and underwriting information.', `<div class="form-grid three">${field('First Name','insured.firstName','text',null,'',true)}${field('Last Name','insured.lastName','text',null,'',true)}${field('Date of Birth','insured.dob','date',null,'',true)}${field('Email','insured.email','email',null,'insured@email.com',true)}${field('Phone','insured.phone','tel',null,'',true)}${field('Marital Status','insured.maritalStatus','text',['Single','Married','Divorced','Widowed'],'',true)}${field('Occupation','insured.occupation','text',null,'')}${field('Insurance Score Tier','insured.scoreTier','text',['Preferred','Standard','Needs Review','Unknown'],'')}${field('Years at Current Residence','insured.yearsAtResidence','number',null,'0')}</div>`),
-      section('property','Property Location','Enter risk address and occupancy details.', `<div class="form-grid three">${field('Property Street','property.street','text',null,'',true)}${field('City','property.city','text',null,'',true)}${field('State','property.state','text',states,'',true)}${field('ZIP','property.zip','text',null,'',true)}${field('County','property.county','text',null,'')}${field('Occupancy','property.occupancy','text',['Primary Residence','Secondary Residence','Seasonal','Tenant Occupied','Vacant'],'',true)}${field('Purchase Date','property.purchaseDate','date')}${field('Purchase Price','property.purchasePrice','number')}${field('Is mailing address same as property?','property.mailingSame','text',['Yes','No'],'',true)}</div>`),
-      section('construction','Property Characteristics','Carrier rating questions for construction, roof, and protection class.', `<div class="form-grid three">${field('Year Built','construction.yearBuilt','number',null,'',true)}${field('Square Footage','construction.squareFeet','number',null,'',true)}${field('Construction Type','construction.type','text',['Frame','Masonry','Brick Veneer','Superior Construction','Manufactured Home'],'',true)}${field('Roof Year','construction.roofYear','number',null,'',true)}${field('Roof Type','construction.roofType','text',['Composition Shingle','Metal','Tile','Slate','Wood Shake','Flat / Tar'],'',true)}${field('Electrical Updated Year','construction.electricalYear','number')}${field('Plumbing Updated Year','construction.plumbingYear','number')}${field('HVAC Updated Year','construction.hvacYear','number')}${field('Protection Class','construction.protectionClass','text',['1','2','3','4','5','6','7','8','9','10','Unknown'],'',true)}${field('Distance to Fire Hydrant','construction.hydrantDistance','text',['Under 500 ft','501-1000 ft','Over 1000 ft','Unknown'],'',true)}${field('Distance to Fire Station','construction.stationDistance','text',['Under 5 miles','5-10 miles','Over 10 miles','Unknown'],'',true)}${field('Foundation','construction.foundation','text',['Slab','Crawlspace','Basement','Pier and Beam','Other'],'')}</div>`),
-      section('prior','Prior Insurance & Claims','Carrier questions for prior home insurance and loss history.', `<div class="form-grid three">${field('Currently Insured?','prior.currentlyInsured','text',['Yes','No'],'',true)}${field('Current / Prior Carrier','prior.currentCarrier','text',null,'',true)}${field('Prior Policy Number','prior.priorPolicyNo','text')}${field('Years Continuous Insurance','prior.continuousYears','number',null,'0',true)}${field('Lapse Days','prior.lapseDays','number',null,'0',true)}${field('Claims Last 5 Years','prior.claimCount','number',null,'0',true)}${field('Total Claim Amount','prior.claimAmount','number',null,'0')}${yesNo('Prior cancellation or non-renewal?','prior.cancelNonRenewal')}${yesNo('Mortgagee escrow billed?','prior.escrowBilled')}</div>`),
-      section('coverage','Coverage Selection','Coverage limits, deductible, and endorsements.', `<div class="form-grid three">${field('Coverage A - Dwelling','coverage.dwelling','text',rules.homeCoverages.dwelling,'',true)}${field('Other Structures %','coverage.otherStructures','text',['10%','20%','30%'],'',true)}${field('Personal Property %','coverage.personalProperty','text',['50%','60%','70%','75%'],'',true)}${field('Loss of Use %','coverage.lossOfUse','text',['20%','30%','40%'],'',true)}${field('Personal Liability','coverage.liability','text',rules.homeCoverages.liability,'',true)}${field('Medical Payments','coverage.medPay','text',['1,000','2,000','5,000','10,000'],'',true)}${field('All Other Perils Deductible','coverage.deductible','text',rules.homeCoverages.deductible,'',true)}${field('Wind / Hail Deductible','coverage.windDeductible','text',['Same as AOP','1%','2%','5%','Excluded'],'',true)}${field('Water Backup','coverage.waterBackup','text',['Reject','5,000','10,000','25,000','50,000'],'',true)}</div><div class="inline-checks">${check('Replacement Cost Contents','coverage.replacementCostContents')}${check('Equipment Breakdown','coverage.equipmentBreakdown')}${check('Service Line Coverage','coverage.serviceLine')}${check('Scheduled Personal Property','coverage.scheduledProperty')}</div>`),
-      section('hazards','Risk Hazards','Property hazards that can trigger referral or ineligibility.', `<div class="inline-checks">${check('Swimming pool on premises','hazards.pool')}${check('Pool is unfenced or has diving board/slide','hazards.poolUnsafe')}${check('Trampoline on premises','hazards.trampoline')}${check('Dog or animal exposure','hazards.dog')}${check('Dog breed requiring underwriting review','hazards.dogBreedConcern')}${check('Wood stove / solid fuel heat','hazards.woodStove')}${check('Business conducted from home','hazards.business')}${check('Short-term rental / Airbnb exposure','hazards.shortTermRental')}${check('Vacant or undergoing renovation','hazards.vacantRenovation')}${check('Prior sinkhole/flood/earth movement concern','hazards.earthMovement')}</div>`),
-      section('uw','Carrier Underwriting Questions','Additional carrier questions and documents.', `<div class="inline-checks">${check('Property has open claims or unrepaired damage','uw.openDamage')}${check('Roof shows age, damage, or unknown condition','uw.roofConcern')}${check('Home has knob-and-tube, aluminum wiring, or fuse panel','uw.electricalConcern')}${check('Polybutylene plumbing or major plumbing issue','uw.plumbingConcern')}${check('Applicant has prior fraud or misrepresentation concern','uw.fraudConcern')}${check('Mortgagee/lender clause needs to be added','uw.mortgageeRequired')}</div><div class="checklist-box"><strong>Required Documents</strong>${check('Replacement cost estimator completed','docs.rce')}${check('Photos or inspection documents collected','docs.photos')}${check('Current declarations page collected','docs.decPage')}${check('Mortgagee information verified','docs.mortgagee')}${check('Loss history/claims reviewed','docs.lossHistory')}</div>${field('Underwriting Notes','notes','textarea',null,'Document roof details, updates, claims, hazards, and follow-up items.')}`, true),
-      section('review','Review & Rate','Review missing data and run simulated carrier rating.', `<div id="quoteReviewBox">${quoteReviewHtml()}</div>`, true)
-    ].join('');
-  }
-
-  function collField(label, collection, index, fieldName, type='text', placeholder='', required=false) {
-    const val = currentQuote[collection]?.[index]?.[fieldName] ?? '';
-    return `<label>${label}${required ? ' *' : ''}<input data-collection="${collection}" data-index="${index}" data-field="${fieldName}" type="${type}" value="${escapeAttr(val)}" placeholder="${placeholder}" ${required ? 'required' : ''}></label>`;
-  }
-  function collSelect(label, collection, index, fieldName, options, required=false) {
-    const val = currentQuote[collection]?.[index]?.[fieldName] ?? '';
-    return `<label>${label}${required ? ' *' : ''}<select data-collection="${collection}" data-index="${index}" data-field="${fieldName}" ${required ? 'required' : ''}><option value="">Select</option>${options.map(o => `<option ${String(val) === String(o) ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
-  }
-
-  function gatherQuoteForm() {
-    const form = $('#quoteForm');
-    if (!form) return currentQuote;
-    $$('[data-path]', form).forEach(input => {
-      setPath(currentQuote, input.dataset.path, input.type === 'checkbox' ? input.checked : input.value);
-    });
-    $$('[data-collection]', form).forEach(input => {
-      const c = input.dataset.collection;
-      const i = Number(input.dataset.index);
-      const f = input.dataset.field;
-      if (!currentQuote[c]) currentQuote[c] = [];
-      if (!currentQuote[c][i]) currentQuote[c][i] = {};
-      currentQuote[c][i][f] = input.type === 'checkbox' ? input.checked : input.value;
-    });
-    return currentQuote;
-  }
-
-  function quoteReviewHtml() {
-    const req = requiredMissing(currentQuote, currentLine);
-    return `<div class="summary-grid">${summaryItem('Line', currentLine === 'auto' ? 'Personal Auto' : 'Homeowners')}${summaryItem('Named Insured', insuredName(currentQuote) || 'Not entered')}${summaryItem('Effective Date', currentQuote.account.effectiveDate || 'Not entered')}${summaryItem('Missing Required Items', req.length)}</div>${req.length ? `<div class="risk-flags">${req.slice(0,10).map(r => `<div class="flag">Missing: ${escapeHtml(r)}</div>`).join('')}</div>` : '<div class="risk-flags"><div class="flag clean">Required training data looks complete enough to rate.</div></div>'}`;
-  }
-
-  function rateQuote() {
-    gatherQuoteForm();
-    const missing = requiredMissing(currentQuote, currentLine);
-    if (missing.length) {
-      $('#quoteResultPanel').classList.remove('hidden');
-      $('#quoteResultPanel').innerHTML = `<div class="panel-header"><div><p class="eyebrow">Rating Validation</p><h3>Carrier cannot rate yet</h3></div></div><p class="muted">Complete the required fields below before rating.</p><div class="risk-flags">${missing.map(m => `<div class="flag">${escapeHtml(m)}</div>`).join('')}</div>`;
-      notice('Please complete required rating fields.', 'warning');
-      return;
-    }
-    const result = currentLine === 'auto' ? rateAuto(currentQuote) : rateHome(currentQuote);
-    lastQuoteResult = result;
-    renderQuoteResult(result);
-    addAudit('Quote Rated', `${insuredName(currentQuote)} rated as ${result.status} with risk score ${result.riskScore}.`);
-    saveState();
-  }
-
-  function requiredMissing(q, line) {
-    const missing = [];
-    const need = (label, value) => { if (value === undefined || value === null || String(value).trim() === '') missing.push(label); };
-    need('Effective date', q.account?.effectiveDate);
-    need('First name', q.insured?.firstName);
-    need('Last name', q.insured?.lastName);
-    need('Email', q.insured?.email);
-    need('Phone', q.insured?.phone);
-    if (line === 'auto') {
-      need('Mailing street', q.address?.mailingStreet); need('City', q.address?.city); need('State', q.address?.state); need('ZIP', q.address?.zip);
-      need('Currently insured answer', q.prior?.currentlyInsured); need('Years continuous insurance', q.prior?.continuousYears); need('Lapse days', q.prior?.lapseDays);
-      if (!q.drivers?.length) missing.push('At least one driver');
-      q.drivers?.forEach((d,i)=>{ need(`Driver ${i+1} first name`, d.firstName); need(`Driver ${i+1} last name`, d.lastName); need(`Driver ${i+1} DOB`, d.dob); need(`Driver ${i+1} license status`, d.licenseStatus); });
-      if (!q.vehicles?.length) missing.push('At least one vehicle');
-      q.vehicles?.forEach((v,i)=>{ need(`Vehicle ${i+1} VIN`, v.vin); need(`Vehicle ${i+1} year`, v.year); need(`Vehicle ${i+1} make`, v.make); need(`Vehicle ${i+1} model`, v.model); need(`Vehicle ${i+1} use`, v.usage); });
-      need('BI limit', q.coverage?.bodilyInjury); need('PD limit', q.coverage?.propertyDamage);
-    } else {
-      need('Property street', q.property?.street); need('Property city', q.property?.city); need('Property state', q.property?.state); need('Property ZIP', q.property?.zip); need('Occupancy', q.property?.occupancy);
-      need('Year built', q.construction?.yearBuilt); need('Square footage', q.construction?.squareFeet); need('Roof year', q.construction?.roofYear); need('Roof type', q.construction?.roofType);
-      need('Currently insured answer', q.prior?.currentlyInsured); need('Claims last 5 years', q.prior?.claimCount);
-      need('Dwelling coverage', q.coverage?.dwelling); need('Liability', q.coverage?.liability); need('Deductible', q.coverage?.deductible);
-    }
-    return missing;
-  }
-
-  function rateAuto(q) {
-    let score = 0; const flags = [];
-    const lapse = Number(q.prior.lapseDays || 0);
-    const years = Number(q.prior.continuousYears || 0);
-    if (q.prior.currentlyInsured === 'No') { score += 18; flags.push(['Referral','No current prior insurance.']); }
-    if (lapse > 30) { score += 25; flags.push(['Referral','Insurance lapse over 30 days.']); }
-    else if (lapse > 0) { score += 10; flags.push(['Review','Insurance lapse disclosed.']); }
-    if (years >= 3) score -= 8;
-    if (q.prior.cancelNonPay === 'Yes' || q.prior.cancelNonRenewal === 'Yes') { score += 18; flags.push(['Referral','Prior cancellation/non-payment disclosed.']); }
-    (q.drivers || []).forEach(d => {
-      score += Number(d.accidents || 0) * 12 + Number(d.violations || 0) * 9;
-      if (d.licenseStatus && d.licenseStatus !== 'Valid') { score += 20; flags.push(['Referral', `${d.firstName || 'Driver'} license status is ${d.licenseStatus}.`]); }
-      const age = ageFromDob(d.dob);
-      if (age && age < 21) { score += 12; flags.push(['Review', `${d.firstName || 'Driver'} is youthful operator.`]); }
-      if (d.driverType === 'Excluded') flags.push(['Review', 'Excluded driver request requires signed exclusion form.']);
-    });
-    (q.vehicles || []).forEach(v => {
-      if (v.usage === 'Business') { score += 12; flags.push(['Referral', `${v.year || ''} ${v.make || ''} business use.`]); }
-      if (v.usage === 'Delivery/Rideshare') { score += 35; flags.push(['Decline','Delivery/rideshare exposure requires specialty market.']); }
-      if (Number(v.annualMiles || 0) > 20000) { score += 10; flags.push(['Review','High annual mileage.']); }
-      if ((v.vin || '').length && (v.vin || '').length !== 17) { score += 8; flags.push(['Review','VIN length is not 17 characters. Verify VIN.']); }
-    });
-    Object.entries(q.uw || {}).forEach(([k, v]) => { if (v) score += ['majorViolation','sr22','licenseIssue','fraudConcern'].includes(k) ? 35 : 14; });
-    if (q.uw.majorViolation) flags.push(['Decline','Major violation / DUI question answered Yes.']);
-    if (q.uw.sr22) flags.push(['Referral','SR-22 / FR-44 filing requires underwriting review.']);
-    if (q.uw.salvageTitle) flags.push(['Referral','Salvage/rebuilt title disclosed.']);
-    if (q.coverage.bodilyInjury === '25/50') score += 5;
-    if (q.coverage.bodilyInjury === '250/500' || q.coverage.bodilyInjury === '500 CSL') score -= 5;
-    return buildCarrierResults('auto', Math.max(0, score), flags, q);
-  }
-
-  function rateHome(q) {
-    let score = 0; const flags = [];
-    const year = Number(q.construction.yearBuilt || 0);
-    const roofYear = Number(q.construction.roofYear || 0);
-    const currentYear = new Date().getFullYear();
-    const roofAge = roofYear ? currentYear - roofYear : 99;
-    const claims = Number(q.prior.claimCount || 0);
-    if (q.prior.currentlyInsured === 'No') { score += 15; flags.push(['Referral','No current home insurance.']); }
-    if (Number(q.prior.lapseDays || 0) > 30) { score += 25; flags.push(['Referral','Lapse over 30 days.']); }
-    if (claims >= 2) { score += 25; flags.push(['Referral','Two or more claims in last 5 years.']); }
-    else if (claims === 1) { score += 12; flags.push(['Review','Prior claim disclosed.']); }
-    if (year && currentYear - year > 60) { score += 15; flags.push(['Review','Older home requires updates review.']); }
-    if (roofAge > 20) { score += 30; flags.push(['Referral','Roof age over 20 years.']); }
-    else if (roofAge > 15) { score += 15; flags.push(['Review','Roof age over 15 years.']); }
-    if (['9','10','Unknown'].includes(q.construction.protectionClass)) { score += 18; flags.push(['Referral','High or unknown protection class.']); }
-    Object.entries(q.hazards || {}).forEach(([k, v]) => { if (v) score += ['poolUnsafe','dogBreedConcern','shortTermRental','vacantRenovation','earthMovement'].includes(k) ? 25 : 10; });
-    Object.entries(q.uw || {}).forEach(([k, v]) => { if (v) score += ['openDamage','fraudConcern','electricalConcern','plumbingConcern'].includes(k) ? 35 : 15; });
-    if (q.hazards.shortTermRental) flags.push(['Decline','Short-term rental exposure may be ineligible for standard homeowners.']);
-    if (q.uw.openDamage) flags.push(['Decline','Open/unrepaired damage disclosed.']);
-    if (q.hazards.dogBreedConcern) flags.push(['Referral','Animal exposure requires underwriting review.']);
-    if (q.uw.electricalConcern) flags.push(['Referral','Electrical system concern disclosed.']);
-    if (Number(q.coverage.dwelling || 0) > 750000) { score += 8; flags.push(['Review','High-value dwelling may require separate market.']); }
-    return buildCarrierResults('home', Math.max(0, score), flags, q);
-  }
-
-  function buildCarrierResults(line, riskScore, flags, q) {
-    const hasDecline = flags.some(f => f[0] === 'Decline') || riskScore >= 85;
-    const hasReferral = flags.some(f => f[0] === 'Referral') || riskScore >= 45;
-    const status = hasDecline ? 'Declined / Specialty Review' : hasReferral ? 'Referral Required' : riskScore <= 18 ? 'Preferred Eligible' : 'Standard Eligible';
-    const carriers = rules.carriers.map((c, idx) => {
-      const base = line === 'auto' ? c.autoBase : c.homeBase;
-      const tierLoad = idx * 0.09;
-      const premium = Math.round(base * (1 + riskScore / 100 + tierLoad));
-      let carrierStatus = status;
-      if (idx === 0 && riskScore > 25) carrierStatus = 'Not Preferred';
-      if (idx === 1 && riskScore > 55) carrierStatus = 'Referral Required';
-      if (hasDecline && idx < 3) carrierStatus = 'Declined';
-      return { ...c, premium, monthly: Math.round(premium / 12), down: Math.round(premium * 0.18), carrierStatus };
-    });
-    return { quoteId: uid('QT'), line, lineLabel: line === 'auto' ? 'Personal Auto' : 'Homeowners', insuredName: insuredName(q), riskScore, status, flags, carriers, createdAt: new Date().toISOString(), q: structuredClone(q) };
-  }
-
-  function renderQuoteResult(result) {
-    const panel = $('#quoteResultPanel');
-    panel.classList.remove('hidden');
-    const flagHtml = result.flags.length ? result.flags.map(([level, text]) => `<div class="flag ${level === 'Decline' ? 'decline' : ''}"><strong>${level}:</strong> ${escapeHtml(text)}</div>`).join('') : '<div class="flag clean">No major referral flags detected in this training scenario.</div>';
-    panel.innerHTML = `<div class="panel-header"><div><p class="eyebrow">Carrier Rating Result</p><h3>${escapeHtml(result.insuredName)} · ${result.lineLabel}</h3></div><div class="actions-row"><button class="secondary-btn" id="saveQuoteBtn">Save Quote</button><button class="primary-btn" id="bindPolicyBtn">Bind / Issue Training Policy</button></div></div>
-      <div class="summary-grid">${summaryItem('Quote Status', result.status)}${summaryItem('Risk Score', result.riskScore)}${summaryItem('Line', result.lineLabel)}${summaryItem('Created', formatDateTime(result.createdAt))}</div>
-      <h4>Carrier Indications</h4><div class="carrier-grid">${result.carriers.map(c => `<article class="carrier-card"><h4>${c.name}</h4><div class="meta-row"><span class="pill info">${c.tier}</span>${statusPill(c.carrierStatus)}</div><div class="premium">${money(c.premium)}</div><p class="muted">Monthly est. ${money(c.monthly)} · Down payment est. ${money(c.down)}</p><small>${escapeHtml(c.appetite)}</small></article>`).join('')}</div>
-      <h4>Underwriting Flags</h4><div class="risk-flags">${flagHtml}</div>`;
-    $('#saveQuoteBtn').addEventListener('click', saveCurrentQuote);
-    $('#bindPolicyBtn').addEventListener('click', bindCurrentPolicy);
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function saveCurrentQuote() {
-    if (!lastQuoteResult) return notice('Run rating first.', 'warning');
-    const quote = structuredClone(lastQuoteResult);
-    state.counters.quote += 1;
-    quote.quoteNo = `QTE-${new Date().getFullYear()}-${String(state.counters.quote).padStart(6,'0')}`;
-    state.quotes.unshift(quote);
-    addTask('Quote', quote.quoteNo, quote.insuredName, `${quote.lineLabel} quote saved. Status: ${quote.status}.`, 'Open');
-    addAudit('Quote Saved', `${quote.quoteNo} saved for ${quote.insuredName}.`);
-    saveState();
-    renderAll();
-    notice(`Quote saved: ${quote.quoteNo}`, 'success');
-  }
-
-  function bindCurrentPolicy() {
-    if (!lastQuoteResult) return notice('Run rating first.', 'warning');
-    if (/Declined/.test(lastQuoteResult.status)) return notice('Training carrier cannot bind a declined risk. Use remarketing/specialty review.', 'danger');
-    const q = lastQuoteResult.q;
-    const line = lastQuoteResult.line;
-    state.counters[line] += 1;
-    const prefix = line === 'auto' ? 'AUP' : 'HOP';
-    const policyNo = `${prefix}-${new Date().getFullYear()}-${String(state.counters[line]).padStart(6,'0')}`;
-    const premium = lastQuoteResult.carriers.find(c => c.carrierStatus !== 'Declined')?.premium || lastQuoteResult.carriers[0].premium;
-    const effective = q.account.effectiveDate || todayIso();
-    const policy = { id: uid('POL'), policyNo, line, lineLabel: line === 'auto' ? 'Personal Auto' : 'Homeowners', insuredName: insuredName(q), effectiveDate: effective, expirationDate: addYear(effective), premium, status: 'Active', data: structuredClone(q), result: structuredClone(lastQuoteResult), createdBy: state.session?.name || 'Training User', createdAt: new Date().toISOString() };
-    state.policies.unshift(policy);
-    addTask('Policy Issued', policyNo, policy.insuredName, `${policy.lineLabel} training policy issued.`, 'Completed');
-    addAudit('Policy Issued', `${policyNo} issued for ${policy.insuredName}.`);
-    saveState();
-    renderAll();
-    notice(`Training policy issued: ${policyNo}`, 'success');
-    searchPolicies(policyNo);
-    openRoute('policy-search');
-  }
-
-  function savePayment(e) {
-    e.preventDefault();
-    const data = formObject(e.target);
-    const p = findPolicy(data.policyNo);
-    if (!p) return notice('Policy number not found. Create/bind a policy first.', 'warning');
-    const checklist = checks(e.target, 'paymentChecklist');
-    const payment = { id: uid('PAY'), policyNo: p.policyNo, insured: p.insuredName, ...data, checklist, createdBy: state.session?.name, createdAt: new Date().toISOString() };
-    state.payments.unshift(payment);
-    addTask('Payment', p.policyNo, p.insuredName, `${data.paymentType} posted for ${money(Number(data.amount))}.`, 'Completed');
-    addAudit('Payment Posted', `${money(Number(data.amount))} posted to ${p.policyNo}.`);
-    e.target.reset(); saveState(); renderAll(); notice('Training payment posted.', 'success');
-  }
-  function saveEndorsement(e) {
-    e.preventDefault();
-    const data = formObject(e.target); const p = findPolicy(data.policyNo);
-    if (!p) return notice('Policy number not found. Search or issue policy first.', 'warning');
-    const item = { id: uid('END'), policyNo: p.policyNo, insured: p.insuredName, ...data, checklist: checks(e.target,'endorsementChecklist'), createdBy: state.session?.name, createdAt: new Date().toISOString() };
-    state.endorsements.unshift(item);
-    addTask('Endorsement', p.policyNo, p.insuredName, `${data.endorsementType}: ${data.status}.`, /Approved|Declined/.test(data.status) ? 'Completed' : 'Open');
-    addAudit('Endorsement Saved', `${data.endorsementType} saved for ${p.policyNo}.`);
-    e.target.reset(); saveState(); renderAll(); notice('Endorsement activity saved.', 'success');
-  }
-  function saveCancellation(e) {
-    e.preventDefault();
-    const data = formObject(e.target); const p = findPolicy(data.policyNo);
-    if (!p) return notice('Policy number not found.', 'warning');
-    const item = { id: uid('CAN'), policyNo: p.policyNo, insured: p.insuredName, ...data, checklist: checks(e.target,'cancelChecklist'), status: 'Pending Cancellation Review', createdBy: state.session?.name, createdAt: new Date().toISOString() };
-    state.cancellations.unshift(item); p.status = 'Pending Cancellation';
-    addTask('Cancellation', p.policyNo, p.insuredName, `${data.reason} cancellation requested.`, 'Open');
-    addAudit('Cancellation Requested', `${p.policyNo} marked Pending Cancellation.`);
-    e.target.reset(); saveState(); renderAll(); notice('Cancellation request recorded.', 'success');
-  }
-  function saveRemarketing(e) {
-    e.preventDefault();
-    const data = formObject(e.target); const p = findPolicy(data.policyNo);
-    if (!p) return notice('Policy number not found.', 'warning');
-    const item = { id: uid('RMK'), policyNo: p.policyNo, insured: p.insuredName, ...data, checklist: checks(e.target,'remarketChecklist'), status: 'Open Remarketing Review', createdBy: state.session?.name, createdAt: new Date().toISOString() };
-    state.remarketing.unshift(item);
-    addTask('Remarketing', p.policyNo, p.insuredName, `${data.reason} remarketing task created.`, 'Open');
-    addAudit('Remarketing Created', `${p.policyNo} remarketing task created.`);
-    e.target.reset(); saveState(); renderAll(); notice('Remarketing task created.', 'success');
-  }
-  function saveQaReview(e) {
-    e.preventDefault();
-    const data = formObject(e.target);
-    const item = { id: uid('QA'), ...data, reviewer: state.session?.name || 'Trainer', createdAt: new Date().toISOString() };
-    state.qaReviews.unshift(item);
-    addAudit('QA Review', `QA score ${data.score} saved for ${data.reference}.`);
-    e.target.reset(); saveState(); renderTrainerCenter(); notice('QA review saved.', 'success');
-  }
-
-  function renderPaymentHistory() { renderHistory('#paymentHistory', ['Policy','Insured','Type','Amount','Method','Date'], state.payments.map(x => [x.policyNo, x.insured, x.paymentType, money(Number(x.amount)), x.method, formatDateTime(x.createdAt)])); }
-  function renderEndorsementHistory() { renderHistory('#endorsementHistory', ['Policy','Insured','Type','Effective','Status','Date'], state.endorsements.map(x => [x.policyNo, x.insured, x.endorsementType, formatDate(x.effectiveDate), statusPill(x.status), formatDateTime(x.createdAt)])); }
-  function renderCancellationHistory() { renderHistory('#cancellationHistory', ['Policy','Insured','Reason','Cancel Date','Status','Date'], state.cancellations.map(x => [x.policyNo, x.insured, x.reason, formatDate(x.cancelDate), statusPill(x.status), formatDateTime(x.createdAt)])); }
-  function renderRemarketingHistory() { renderHistory('#remarketingHistory', ['Policy','Insured','Reason','Target Date','Status','Date'], state.remarketing.map(x => [x.policyNo, x.insured, x.reason, formatDate(x.targetDate), statusPill(x.status), formatDateTime(x.createdAt)])); }
-  function renderHistory(sel, headers, rows) { const el = $(sel); if (el) el.innerHTML = rows.length ? table(headers, rows) : empty('No records yet.'); }
-
-  function renderWorkQueue() {
-    const type = $('#queueFilter')?.value || 'all';
-    const q = ($('#queueSearch')?.value || '').toLowerCase();
-    let rows = state.tasks;
-    if (type !== 'all') rows = rows.filter(t => t.type === type);
-    if (q) rows = rows.filter(t => [t.type,t.reference,t.insured,t.status,t.description,t.owner].join(' ').toLowerCase().includes(q));
-    $('#workQueueTable').innerHTML = rows.length ? table(['Task ID','Type','Reference','Insured','Description','Status','Owner','Created'], rows.map(t => [t.id, t.type, t.reference || '-', t.insured || '-', escapeHtml(t.description), statusPill(t.status), t.owner, formatDateTime(t.createdAt)])) : empty('No queue items yet.');
-  }
-
-  function renderTrainerCenter() {
-    const el = $('#trainerStats'); if (!el) return;
-    const avgScore = state.qaReviews.length ? Math.round(state.qaReviews.reduce((a,b)=>a+Number(b.score||0),0)/state.qaReviews.length) : 0;
-    const stats = [['VA Logins', state.logins.length], ['QA Reviews', state.qaReviews.length], ['Avg QA Score', avgScore], ['Total Audit Events', state.audit.length]];
-    el.innerHTML = stats.map(([label,value]) => `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
-    $('#qaReviewsTable').innerHTML = state.qaReviews.length ? table(['Reference','Score','Feedback','Reviewer','Date'], state.qaReviews.map(x => [x.reference, `${x.score}%`, escapeHtml(x.feedback), x.reviewer, formatDateTime(x.createdAt)])) : empty('No QA reviews yet.');
-  }
-
-  function renderIdPolicyOptions() {
-    const sel = $('#idVehicleSelect'); if (!sel) return;
-    const policyNo = $('#idPolicyNo')?.value.trim();
-    const p = findPolicy(policyNo);
-    if (!p || p.line !== 'auto') { sel.innerHTML = '<option value="">Select policy first</option>'; return; }
-    const vehicles = p.data.vehicles || [];
-    sel.innerHTML = vehicles.length ? vehicles.map((v,i) => `<option value="${i}">${escapeHtml([v.year,v.make,v.model].filter(Boolean).join(' '))} · ${escapeHtml(v.vin || '')}</option>`).join('') : '<option value="">No vehicles found</option>';
-  }
-  function loadIdPolicy() {
-    const policyNo = $('#idPolicyNo').value.trim(); const p = findPolicy(policyNo);
-    if (!p) return notice('Policy not found.', 'warning');
-    if (p.line !== 'auto') return notice('ID cards can only be generated for Auto policies.', 'warning');
-    renderIdPolicyOptions(); notice('Auto policy loaded for ID card generation.', 'success');
-  }
-  function generateIdCard() {
-    const policyNo = $('#idPolicyNo').value.trim(); const p = findPolicy(policyNo);
-    if (!p || p.line !== 'auto') return notice('Load an active Auto policy first.', 'warning');
-    const idx = Number($('#idVehicleSelect').value || 0); const v = (p.data.vehicles || [])[idx] || {};
-    $('#idCardOutput').innerHTML = `<div class="id-card"><div class="id-card-top"><div><h3>TRAINING AUTO INSURANCE ID CARD</h3><p class="muted">CarrierOps Simulator · Not valid proof of insurance</p></div><strong>${escapeHtml(p.policyNo)}</strong></div><div class="id-card-grid">
-      <div><strong>Named Insured</strong>${escapeHtml(p.insuredName)}</div><div><strong>Policy Period</strong>${formatDate(p.effectiveDate)} to ${formatDate(p.expirationDate)}</div>
-      <div><strong>Vehicle</strong>${escapeHtml([v.year,v.make,v.model].filter(Boolean).join(' '))}</div><div><strong>VIN</strong>${escapeHtml(v.vin || '-')}</div>
-      <div><strong>Carrier</strong>LAVA Training Carrier</div><div><strong>Agency</strong>${escapeHtml(p.data.account?.agencyCode || 'Training Agency')}</div>
-    </div><p class="fineprint">This card is generated for VA training only and is not a real insurance document.</p></div>`;
-    addAudit('ID Card Generated', `Training ID card generated for ${p.policyNo}.`); saveState();
-  }
-
-  function findPolicy(policyNo) { return state.policies.find(p => p.policyNo.toLowerCase() === String(policyNo || '').toLowerCase()); }
-  function formObject(form) { const fd = new FormData(form); const obj = {}; fd.forEach((v,k)=>{ if (!obj[k]) obj[k]=v; }); return obj; }
-  function checks(form, name) { return $$(`input[name="${name}"]:checked`, form).map(x => x.value); }
-
-  function exportCsv() {
-    const rows = [['Type','Reference','Insured','Status','Owner','Description','Created'], ...state.tasks.map(t => [t.type,t.reference,t.insured,t.status,t.owner,t.description,t.createdAt])];
-    downloadText('carrierops-work-queue.csv', rows.map(r => r.map(csvEscape).join(',')).join('\n'));
-  }
-  function exportTrainerReport() {
-    const rows = [['Reference','Score','Feedback','Reviewer','Date'], ...state.qaReviews.map(x => [x.reference,x.score,x.feedback,x.reviewer,x.createdAt])];
-    downloadText('trainer-qa-report.csv', rows.map(r => r.map(csvEscape).join(',')).join('\n'));
-  }
-  function exportJsonBackup() { downloadText('carrierops-backup.json', JSON.stringify(state, null, 2)); }
-  function importJsonBackup(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { state = mergeDeep(structuredClone(baseState), JSON.parse(reader.result)); saveState(); renderAll(); notice('Backup imported successfully.', 'success'); }
-      catch (err) { notice('Invalid JSON backup file.', 'danger'); }
-    };
-    reader.readAsText(file);
-  }
-  function downloadText(filename, text) {
-    const blob = new Blob([text], { type: 'text/plain' });
+  function downloadText(filename, content, mime = "text/plain") {
+    const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function highlightGuide(target) {
-    $$('.guide-card').forEach(c => c.classList.remove('highlight'));
-    const card = $(`#guide-${target}`); if (card) { card.classList.add('highlight'); card.scrollIntoView({behavior:'smooth', block:'center'}); }
+  function downloadHtml(filename, title, bodyHtml) {
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+      body{font-family:Arial,sans-serif;margin:28px;color:#111827} h1,h2,h3{margin-bottom:6px}
+      .box{border:1px solid #d0d5dd;border-radius:12px;padding:16px;margin:12px 0}
+      table{width:100%;border-collapse:collapse} td,th{border:1px solid #d0d5dd;padding:8px;text-align:left}
+      small{color:#667085}.brand{background:#0f4c81;color:#fff;padding:14px;border-radius:12px}
+      @media print{button{display:none}}
+    </style></head><body><button onclick="window.print()">Print / Save as PDF</button>${bodyHtml}</body></html>`;
+    downloadText(filename, doc, "text/html");
   }
-  function summaryItem(label, value) { return `<div class="summary-item"><strong>${escapeHtml(label)}</strong>${escapeHtml(value ?? '-')}</div>`; }
-  function table(headers, rows) { return `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`; }
-  function empty(msg) { return `<div class="empty">${escapeHtml(msg)}</div>`; }
-  function statusPill(status) {
-    const s = String(status || 'Open');
-    const cls = /Active|Preferred|Completed|Approved|Eligible/.test(s) ? 'success' : /Declined|Cancel|Ineligible|Closed/.test(s) ? 'danger' : /Referral|Pending|Review|Open|Not Preferred/.test(s) ? 'warning' : 'info';
-    return `<span class="pill ${cls}">${escapeHtml(s)}</span>`;
+
+  function formData(form) {
+    const data = {};
+    new FormData(form).forEach((value, key) => {
+      if (data[key]) {
+        if (!Array.isArray(data[key])) data[key] = [data[key]];
+        data[key].push(value);
+      } else {
+        data[key] = value;
+      }
+    });
+    $$("input[type=checkbox]", form).forEach((box) => {
+      if (!data[box.name]) data[box.name] = box.checked ? "Yes" : "No";
+    });
+    return data;
   }
-  function insuredName(q) { return [q.insured?.firstName, q.insured?.lastName].filter(Boolean).join(' ').trim(); }
-  function mailingAddress(d) {
-    const a = d.address || d.property || {};
-    return [a.mailingStreet || a.street, a.city, a.state, a.zip].filter(Boolean).join(', ') || '-';
+
+  function csv(rows) {
+    if (!rows.length) return "";
+    const cols = Array.from(rows.reduce((set, row) => {
+      Object.keys(row).forEach((key) => set.add(key));
+      return set;
+    }, new Set()));
+    const q = (v) => `"${String(typeof v === "object" && v !== null ? JSON.stringify(v) : v ?? "").replace(/"/g, '""')}"`;
+    return [cols.join(","), ...rows.map((row) => cols.map((c) => q(row[c])).join(","))].join("\n");
   }
-  function getPath(obj, path) { return String(path).split('.').reduce((o,k)=>o?.[k], obj); }
-  function setPath(obj, path, value) { const parts = String(path).split('.'); let cur = obj; while (parts.length > 1) { const p = parts.shift(); cur[p] = cur[p] || {}; cur = cur[p]; } cur[parts[0]] = value; }
-  function initials(name) { return String(name || 'VA').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase() || 'VA'; }
-  function uid(prefix) { return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,7).toUpperCase()}`; }
-  function todayIso() { return new Date().toISOString().slice(0,10); }
-  function addYear(dateStr) { const d = new Date(dateStr + 'T00:00:00'); d.setFullYear(d.getFullYear()+1); return d.toISOString().slice(0,10); }
-  function formatDate(d) { if (!d) return '-'; const x = new Date(String(d).includes('T') ? d : d + 'T00:00:00'); return isNaN(x) ? d : x.toLocaleDateString(); }
-  function formatDateTime(d) { if (!d) return '-'; const x = new Date(d); return isNaN(x) ? d : x.toLocaleString(); }
-  function money(n) { return Number(n || 0).toLocaleString(undefined, { style:'currency', currency:'USD', maximumFractionDigits:0 }); }
-  function csvEscape(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; }
-  function escapeHtml(v) { return String(v ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
-  function escapeAttr(v) { return escapeHtml(v).replace(/'/g, '&#039;'); }
-  function debounce(fn, delay) { let t; return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), delay); }; }
-  function ageFromDob(dob) { if (!dob) return null; const d = new Date(dob); if (isNaN(d)) return null; const now = new Date(); let age = now.getFullYear() - d.getFullYear(); const m = now.getMonth()-d.getMonth(); if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--; return age; }
+
+  function updateChrome() {
+    $("#connection-badge").textContent = store.isOnline() ? "Supabase Connected" : "Local Mode";
+    $("#connection-badge").classList.toggle("online", store.isOnline());
+    if (!state.user) return;
+    $("#user-name").textContent = state.user.name;
+    $("#user-role").textContent = state.user.role;
+    $("#user-initials").textContent = initials(state.user.name);
+    $$(".trainer-only").forEach((el) => el.classList.toggle("hidden", state.user.role !== "Trainer"));
+    $$(".nav-link").forEach((btn) => btn.classList.toggle("active", btn.dataset.route === state.route));
+  }
+
+  async function navigate(route) {
+    state.route = route || "dashboard";
+    history.replaceState(null, "", `#${state.route}`);
+    updateChrome();
+    await render();
+  }
+
+  async function render() {
+    const view = $("#view");
+    view.innerHTML = `<div class="card"><p class="muted">Loading ${esc(state.route)}...</p></div>`;
+    try {
+      if (state.route === "dashboard") return renderDashboard();
+      if (state.route === "search") return renderSearch();
+      if (state.route === "quote") return renderQuote();
+      if (state.route === "idcards") return renderIdCards();
+      if (state.route === "payments") return renderPayments();
+      if (state.route === "endorsements") return renderEndorsements();
+      if (state.route === "cancellations") return renderCancellations();
+      if (state.route === "remarketing") return renderRemarketing();
+      if (state.route === "workqueue") return renderWorkQueue();
+      if (state.route === "trainer") return renderTrainer();
+      return renderDashboard();
+    } catch (err) {
+      console.error(err);
+      view.innerHTML = `<div class="warning-box"><strong>Portal error:</strong> ${esc(err.message || err)}</div>`;
+    }
+  }
+
+  function viewHead(title, subtitle, actions = "") {
+    return `<div class="view-head"><div><p class="eyebrow">Carrier Operations</p><h1>${esc(title)}</h1><p class="muted">${esc(subtitle || "")}</p></div><div class="view-actions">${actions}</div></div>`;
+  }
+
+  async function renderDashboard() {
+    const [policies, payments, endorsements, cancellations, audit] = await Promise.all([
+      store.list("policies", { orderBy: "updated_at" }),
+      store.list("payments", { orderBy: "created_at" }),
+      store.list("endorsements", { orderBy: "created_at" }),
+      store.list("cancellations", { orderBy: "created_at" }),
+      store.list("audit", { orderBy: "created_at" })
+    ]);
+
+    const activePolicies = policies.filter((p) => String(p.status || "").toLowerCase() === "active").length;
+    const openItems = endorsements.filter((e) => e.status !== "Completed").length + cancellations.filter((c) => c.status !== "Completed").length;
+    const totalPremium = policies.reduce((sum, p) => sum + Number(p.premium || 0), 0);
+
+    $("#view").innerHTML = `
+      ${viewHead("Dashboard", "Top carrier-style command center for policy servicing and VA training.", `
+        <button class="btn primary" data-route="quote">Start New Quote</button>
+        <button class="btn subtle" data-route="search">Find Policy</button>
+      `)}
+      <div class="grid four">
+        <div class="metric"><div class="value">${policies.length}</div><div class="label">Policies in Training System</div></div>
+        <div class="metric"><div class="value">${activePolicies}</div><div class="label">Active Policies</div></div>
+        <div class="metric"><div class="value">${openItems}</div><div class="label">Open Service Items</div></div>
+        <div class="metric"><div class="value">${formatMoney(totalPremium)}</div><div class="label">Written Premium</div></div>
+      </div>
+
+      <div class="grid two" style="margin-top:1rem">
+        <section class="card">
+          <h2>Quick Policy Search</h2>
+          <p class="muted">Search a policy number or named insured. Try demo policy <span class="kbd">LVA-AUTO-1001</span> after loading demo policies.</p>
+          ${searchStrip("dashboard-search", "Policy number or named insured")}
+          <div id="dashboard-search-results" class="results-list"></div>
+        </section>
+        <section class="card">
+          <h2>Carrier Task Launcher</h2>
+          <div class="grid two">
+            ${launcher("Policy Search", "Find a customer record.", "search")}
+            ${launcher("Quote", "Create auto or home quote.", "quote")}
+            ${launcher("ID Cards", "Generate auto ID cards.", "idcards")}
+            ${launcher("Endorsements", "Process policy changes.", "endorsements")}
+            ${launcher("Payments", "Post payment and receipt.", "payments")}
+            ${launcher("Cancellations", "Process cancellation request.", "cancellations")}
+          </div>
+        </section>
+      </div>
+
+      <div class="grid two" style="margin-top:1rem">
+        <section class="card">
+          <h2>Recent Activity</h2>
+          ${activityList(audit.slice(0, 7))}
+        </section>
+        <section class="card">
+          <h2>System Setup</h2>
+          <div class="${store.isOnline() ? "success-box" : "info-box"}">
+            <strong>${store.isOnline() ? "Supabase is connected." : "Local training mode is active."}</strong><br>
+            ${store.isOnline() ? "Records and uploaded documents are saved to your Supabase project." : "Records are saved in this browser only. Add Supabase URL/key in js/config.js and run docs/supabase-setup.sql to make it shared."}
+          </div>
+          <button class="btn subtle" data-action="download-readme">Download Setup Notes</button>
+        </section>
+      </div>
+    `;
+  }
+
+  function launcher(title, text, route) {
+    return `<button class="card soft" data-route="${route}" style="text-align:left"><strong>${esc(title)}</strong><p class="muted">${esc(text)}</p></button>`;
+  }
+
+  function searchStrip(id, placeholder) {
+    return `<div class="search-strip">
+      <label>Search
+        <input id="${id}" placeholder="${esc(placeholder)}" />
+      </label>
+      <label>Search Type
+        <select id="${id}-type">
+          <option>Policy Number</option>
+          <option>Named Insured</option>
+          <option>Email / Phone</option>
+        </select>
+      </label>
+      <button class="btn primary" data-action="policy-search" data-input="${id}" data-results="${id}-results">Search</button>
+    </div>`;
+  }
+
+  function activityList(items) {
+    if (!items.length) return `<div class="empty-state">No activity yet.</div>`;
+    return `<div class="results-list">${items.map((a) => `<div class="activity-item">
+      <div><strong>${esc(a.action)}</strong><p>${esc(a.policy_number || "No policy")} • ${esc(a.performed_by || "System")} • ${formatDate(a.created_at)}</p></div>
+      <span class="status-pill open">Audit</span>
+    </div>`).join("")}</div>`;
+  }
+
+  async function renderSearch() {
+    $("#view").innerHTML = `
+      ${viewHead("Policy Search", "Pull up customer policies by policy number or named insured.", `
+        <button class="btn subtle" data-action="load-demo">Load Demo Policies</button>
+        <button class="btn primary" data-route="quote">Create New Policy</button>
+      `)}
+      <section class="card">
+        ${searchStrip("policy-search-main", "Example: LVA-AUTO-1001 or Jamie Rivera")}
+        <div id="policy-search-main-results" class="results-list"></div>
+      </section>
+      <section id="active-policy-panel" style="margin-top:1rem">${state.activePolicy ? policyServicePanel(state.activePolicy) : ""}</section>
+    `;
+  }
+
+  function policyResultList(policies) {
+    if (!policies.length) {
+      return `<div class="empty-state">
+        <strong>No policy found.</strong>
+        <p>Ask trainee to verify the policy number, spelling of named insured, or create a new quote.</p>
+        <button class="btn primary" data-route="quote">Start New Quote</button>
+      </div>`;
+    }
+    return policies.map((p) => `<article class="result-card">
+      <div>
+        <p class="eyebrow">${esc(p.policy_type || "Policy")}</p>
+        <h3>${esc(p.policy_number)}</h3>
+        <p><strong>${esc(p.named_insured)}</strong> • ${esc(p.address || "No address on file")}</p>
+        <p>${esc(p.carrier || "CarrierOps Mutual")} • Effective ${formatDate(p.effective_date)} to ${formatDate(p.expiration_date)} • Premium ${formatMoney(p.premium)}</p>
+      </div>
+      <div class="view-actions">
+        <span class="status-pill ${String(p.status || "").toLowerCase().replace(/\s+/g, "-")}">${esc(p.status || "Active")}</span>
+        <button class="btn primary" data-action="open-policy" data-policy="${esc(p.policy_number)}">Open</button>
+      </div>
+    </article>`).join("");
+  }
+
+  function policyServicePanel(p) {
+    const vehicle = p.data?.vehicles?.[0] || {};
+    return `<section class="card">
+      <div class="view-head">
+        <div>
+          <p class="eyebrow">${esc(p.policy_type || "Policy")} Policy File</p>
+          <h1>${esc(p.policy_number)}</h1>
+          <p class="muted">${esc(p.named_insured)} • ${esc(p.email || "No email")} • ${esc(p.phone || "No phone")}</p>
+        </div>
+        <span class="status-pill ${String(p.status || "").toLowerCase().replace(/\s+/g, "-")}">${esc(p.status || "Active")}</span>
+      </div>
+      <div class="grid four">
+        <div class="metric"><div class="label">Carrier</div><div class="value" style="font-size:1.1rem">${esc(p.carrier || "CarrierOps Mutual")}</div></div>
+        <div class="metric"><div class="label">Term</div><div class="value" style="font-size:1.1rem">${formatDate(p.effective_date)} - ${formatDate(p.expiration_date)}</div></div>
+        <div class="metric"><div class="label">Premium</div><div class="value" style="font-size:1.3rem">${formatMoney(p.premium)}</div></div>
+        <div class="metric"><div class="label">Balance</div><div class="value" style="font-size:1.3rem">${formatMoney(p.balance)}</div></div>
+      </div>
+      <div class="grid two" style="margin-top:1rem">
+        <div class="card soft">
+          <h3>Risk Snapshot</h3>
+          <p><strong>Address:</strong> ${esc(p.address || "Not entered")}</p>
+          <p><strong>Primary vehicle/property:</strong> ${esc(vehicle.year ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : p.data?.property?.year_built ? `${p.data.property.year_built} home • ${p.data.property.construction || ""}` : "Not entered")}</p>
+          <p><strong>Risk Score:</strong> ${esc(p.risk_score || "Not scored")}</p>
+        </div>
+        <div class="card soft">
+          <h3>Process Action</h3>
+          <div class="view-actions">
+            ${p.policy_type === "Auto" ? `<button class="btn primary" data-route="idcards">Generate ID Card</button>` : ""}
+            <button class="btn primary" data-route="payments">Post Payment</button>
+            <button class="btn primary" data-route="endorsements">Process Endorsement</button>
+            <button class="btn warning" data-route="remarketing">Remarket</button>
+            <button class="btn danger" data-route="cancellations">Cancel Policy</button>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  async function renderQuote() {
+    $("#view").innerHTML = `
+      ${viewHead("New Quote", "Blank carrier-style intake. No customer information is pre-filled.", `
+        <button class="btn subtle" data-action="reset-quote">Clear Quote</button>
+      `)}
+      <form id="quote-form" class="card">
+        <div class="stepper">
+          <span class="step-pill active">Account</span>
+          <span class="step-pill">Risk</span>
+          <span class="step-pill">Coverage</span>
+          <span class="step-pill">Underwriting</span>
+          <span class="step-pill">Rate / Bind</span>
+        </div>
+
+        <div class="form-section">
+          <h3>1. Account Setup</h3>
+          <div class="form-grid">
+            <label class="span-4">Line of Business
+              <select name="policy_type" id="quote-type" required>
+                <option value="Auto">Personal Auto</option>
+                <option value="Home">Homeowners</option>
+              </select>
+            </label>
+            <label class="span-4">Requested Effective Date
+              <input name="effective_date" type="date" required />
+            </label>
+            <label class="span-4">Producer / Agency
+              <input name="agency" placeholder="Agency name" required />
+            </label>
+            <label class="span-4">Named Insured
+              <input name="named_insured" placeholder="First Last or business/trust name" required />
+            </label>
+            <label class="span-4">Email
+              <input name="email" type="email" placeholder="insured@email.com" />
+            </label>
+            <label class="span-4">Phone
+              <input name="phone" placeholder="(555) 555-5555" />
+            </label>
+            <label class="span-8">Mailing Address
+              <input name="mailing_address" placeholder="Street, City, State ZIP" required />
+            </label>
+            <label class="span-4">Prior Carrier
+              <input name="prior_carrier" placeholder="Current/prior insurance carrier" />
+            </label>
+            <label class="span-4">Prior Expiration
+              <input name="prior_expiration" type="date" />
+            </label>
+            <label class="span-4">Years Continuously Insured
+              <select name="continuous_insurance">
+                <option value="0">No prior / lapse</option>
+                <option value="1">Less than 1 year</option>
+                <option value="3">1-3 years</option>
+                <option value="5">3+ years</option>
+              </select>
+            </label>
+            <label class="span-4">Quote Source
+              <select name="source">
+                <option>Agency Request</option>
+                <option>Phone Inquiry</option>
+                <option>Email Request</option>
+                <option>Renewal Remarketing</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div id="auto-risk" class="form-section">
+          <h3>2A. Auto Risk Details</h3>
+          <div class="form-grid">
+            <label class="span-4">Garaging Address
+              <input name="garaging_address" placeholder="Street, City, State ZIP" />
+            </label>
+            <label class="span-2">Vehicle Year
+              <input name="vehicle_year" type="number" min="1980" max="2035" />
+            </label>
+            <label class="span-3">Vehicle Make
+              <input name="vehicle_make" placeholder="Toyota" />
+            </label>
+            <label class="span-3">Vehicle Model
+              <input name="vehicle_model" placeholder="Camry" />
+            </label>
+            <label class="span-4">VIN
+              <input name="vin" maxlength="17" placeholder="17-character VIN" />
+            </label>
+            <label class="span-4">Vehicle Use
+              <select name="vehicle_use">
+                <option>Commute</option>
+                <option>Pleasure</option>
+                <option>Business</option>
+                <option>Rideshare / Delivery</option>
+              </select>
+            </label>
+            <label class="span-4">Annual Mileage
+              <input name="annual_mileage" type="number" min="0" placeholder="12000" />
+            </label>
+            <label class="span-4">Driver Name
+              <input name="driver_name" placeholder="Primary driver" />
+            </label>
+            <label class="span-2">DOB
+              <input name="driver_dob" type="date" />
+            </label>
+            <label class="span-2">License State
+              <input name="license_state" maxlength="2" placeholder="CA" />
+            </label>
+            <label class="span-2">Years Licensed
+              <input name="years_licensed" type="number" min="0" />
+            </label>
+            <label class="span-2">Violations
+              <input name="violations" type="number" min="0" value="0" />
+            </label>
+            <label class="span-2">At-Fault Claims
+              <input name="auto_claims" type="number" min="0" value="0" />
+            </label>
+          </div>
+        </div>
+
+        <div id="home-risk" class="form-section hidden">
+          <h3>2B. Home Risk Details</h3>
+          <div class="form-grid">
+            <label class="span-8">Property Location
+              <input name="property_address" placeholder="Street, City, State ZIP" />
+            </label>
+            <label class="span-4">Occupancy
+              <select name="occupancy">
+                <option>Primary</option>
+                <option>Secondary</option>
+                <option>Tenant Occupied</option>
+                <option>Vacant</option>
+              </select>
+            </label>
+            <label class="span-3">Year Built
+              <input name="year_built" type="number" min="1800" max="2035" />
+            </label>
+            <label class="span-3">Roof Year
+              <input name="roof_year" type="number" min="1800" max="2035" />
+            </label>
+            <label class="span-3">Construction
+              <select name="construction">
+                <option>Frame</option>
+                <option>Masonry</option>
+                <option>Brick Veneer</option>
+                <option>Manufactured</option>
+              </select>
+            </label>
+            <label class="span-3">Protection Class
+              <select name="protection_class">
+                <option>1-3</option>
+                <option>4-6</option>
+                <option>7-8</option>
+                <option>9-10</option>
+              </select>
+            </label>
+            <label class="span-4">Dwelling Coverage A
+              <input name="coverage_a" type="number" min="0" placeholder="450000" />
+            </label>
+            <label class="span-4">Home Claims Last 5 Years
+              <input name="home_claims" type="number" min="0" value="0" />
+            </label>
+            <label class="span-4">Distance to Coast / Brush
+              <select name="cat_exposure">
+                <option>Low</option>
+                <option>Moderate</option>
+                <option>High</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>3. Coverage Selection</h3>
+          <div class="form-grid">
+            <label class="span-3 auto-only">BI Limit
+              <select name="bi_limit"><option>State Minimum</option><option>50/100</option><option>100/300</option><option>250/500</option></select>
+            </label>
+            <label class="span-3 auto-only">PD Limit
+              <select name="pd_limit"><option>25,000</option><option>50,000</option><option>100,000</option></select>
+            </label>
+            <label class="span-3 auto-only">Comprehensive Deductible
+              <select name="comp_ded"><option>None</option><option>250</option><option>500</option><option>1000</option></select>
+            </label>
+            <label class="span-3 auto-only">Collision Deductible
+              <select name="coll_ded"><option>None</option><option>250</option><option>500</option><option>1000</option></select>
+            </label>
+            <label class="span-3 home-only hidden">HO Form
+              <select name="home_form"><option>HO3</option><option>HO5</option><option>HO6</option><option>DP3</option></select>
+            </label>
+            <label class="span-3 home-only hidden">Deductible
+              <select name="home_ded"><option>1000</option><option>2500</option><option>5000</option></select>
+            </label>
+            <label class="span-3 home-only hidden">Water Backup
+              <select name="water_backup"><option>No</option><option>5,000</option><option>10,000</option><option>25,000</option></select>
+            </label>
+            <label class="span-3 home-only hidden">Personal Property
+              <select name="contents"><option>50%</option><option>70%</option><option>Replacement Cost</option></select>
+            </label>
+            <label class="span-4">Paperless Discount
+              <select name="paperless"><option>Yes</option><option>No</option></select>
+            </label>
+            <label class="span-4">Autopay Discount
+              <select name="autopay"><option>Yes</option><option>No</option></select>
+            </label>
+            <label class="span-4">Bundle Opportunity
+              <select name="bundle"><option>No</option><option>Auto + Home</option><option>Umbrella</option></select>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>4. Underwriting Questions</h3>
+          <div class="form-grid">
+            <label class="span-4">Any lapse in coverage?
+              <select name="lapse"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-4">Any prior carrier cancellation/non-renewal?
+              <select name="prior_cancel"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-4">Any open claims?
+              <select name="open_claims"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-4 auto-only">Any excluded drivers needed?
+              <select name="excluded_driver"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-4 auto-only">Rideshare, delivery, or commercial use?
+              <select name="commercial_use"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-4 home-only hidden">Any trampoline, pool, or animal exposure?
+              <select name="liability_hazard"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-4 home-only hidden">Any unrepaired damage or vacancy?
+              <select name="property_condition"><option>No</option><option>Yes</option></select>
+            </label>
+            <label class="span-12">Underwriter Notes / Remark
+              <textarea name="uw_notes" placeholder="Document assumptions, missing items, coverage discussion, and reason for referral if applicable."></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="view-actions">
+          <button class="btn primary" type="submit">Rate Quote</button>
+          <button class="btn success hidden" type="button" id="bind-quote-btn" data-action="bind-quote">Bind / Create Policy</button>
+        </div>
+      </form>
+      <section id="quote-output" style="margin-top:1rem"></section>
+    `;
+
+    $("#quote-type").addEventListener("change", syncQuoteType);
+    syncQuoteType();
+  }
+
+  function syncQuoteType() {
+    const type = $("#quote-type")?.value || "Auto";
+    $("#auto-risk")?.classList.toggle("hidden", type !== "Auto");
+    $("#home-risk")?.classList.toggle("hidden", type !== "Home");
+    $$(".auto-only").forEach((el) => el.classList.toggle("hidden", type !== "Auto"));
+    $$(".home-only").forEach((el) => el.classList.toggle("hidden", type !== "Home"));
+  }
+
+  function rateQuote(data) {
+    const type = data.policy_type;
+    let premium = type === "Auto" ? 1180 : 980;
+    let risk = 25;
+    const flags = [];
+
+    if (data.continuous_insurance === "0" || data.lapse === "Yes") { premium += 275; risk += 18; flags.push("Coverage lapse requires underwriting review."); }
+    if (data.prior_cancel === "Yes") { premium += 350; risk += 22; flags.push("Prior cancellation/non-renewal disclosed."); }
+    if (data.open_claims === "Yes") { premium += 450; risk += 25; flags.push("Open claims require referral."); }
+
+    if (type === "Auto") {
+      const vehicleAge = Number(new Date().getFullYear()) - Number(data.vehicle_year || new Date().getFullYear());
+      const mileage = Number(data.annual_mileage || 0);
+      const violations = Number(data.violations || 0);
+      const claims = Number(data.auto_claims || 0);
+      if (vehicleAge <= 3) premium += 250;
+      if (mileage > 15000) { premium += 160; risk += 7; flags.push("High annual mileage."); }
+      if (data.vehicle_use === "Business") { premium += 300; risk += 12; flags.push("Business use disclosed."); }
+      if (data.vehicle_use === "Rideshare / Delivery" || data.commercial_use === "Yes") { premium += 600; risk += 40; flags.push("Rideshare/delivery use may be ineligible."); }
+      if (data.bi_limit === "100/300") premium += 115;
+      if (data.bi_limit === "250/500") premium += 220;
+      if (data.comp_ded !== "None") premium += 145;
+      if (data.coll_ded !== "None") premium += 265;
+      premium += violations * 240 + claims * 350;
+      risk += violations * 12 + claims * 16;
+      if (data.excluded_driver === "Yes") { risk += 14; flags.push("Driver exclusion form required."); }
+    } else {
+      const coverageA = Number(data.coverage_a || 300000);
+      const roofAge = Number(new Date().getFullYear()) - Number(data.roof_year || new Date().getFullYear());
+      const homeClaims = Number(data.home_claims || 0);
+      premium += Math.max(0, coverageA - 250000) * 0.0024;
+      if (roofAge > 15) { premium += 420; risk += 18; flags.push("Roof age over 15 years requires photos or inspection."); }
+      if (data.occupancy === "Tenant Occupied" || data.occupancy === "Vacant") { premium += 500; risk += 30; flags.push("Non-primary/vacant occupancy may require referral."); }
+      if (data.cat_exposure === "High") { premium += 550; risk += 28; flags.push("High catastrophe exposure."); }
+      if (data.protection_class === "9-10") { premium += 320; risk += 17; flags.push("Protection class 9-10."); }
+      if (data.liability_hazard === "Yes") { premium += 180; risk += 14; flags.push("Liability hazard disclosed."); }
+      if (data.property_condition === "Yes") { premium += 450; risk += 35; flags.push("Condition/vacancy issue requires referral."); }
+      premium += homeClaims * 420;
+      risk += homeClaims * 20;
+    }
+
+    if (data.paperless === "Yes") premium -= 35;
+    if (data.autopay === "Yes") premium -= 45;
+    if (data.bundle !== "No") premium -= 85;
+
+    premium = Math.max(350, Math.round(premium));
+    let status = "Preferred";
+    if (risk >= 45) status = "Standard";
+    if (risk >= 65) status = "Referral";
+    if (risk >= 90) status = "Declined";
+
+    return {
+      quote_number: makeId("QTE"),
+      policy_type: type,
+      premium,
+      monthly: Math.round((premium / 12) * 100) / 100,
+      down_payment: Math.round(premium * 0.18),
+      risk_score: Math.min(100, risk),
+      status,
+      flags,
+      data
+    };
+  }
+
+  async function renderIdCards() {
+    $("#view").innerHTML = `
+      ${viewHead("Auto Insurance ID Cards", "Pull up an active auto policy and generate a printable ID card.", "")}
+      <section class="card">
+        ${searchStrip("idcard-search", "Auto policy number or named insured")}
+        <div id="idcard-search-results" class="results-list"></div>
+      </section>
+      <section id="idcard-panel" style="margin-top:1rem">${state.activePolicy ? idCardPanel(state.activePolicy) : ""}</section>
+    `;
+  }
+
+  function idCardPanel(p) {
+    if (!p || p.policy_type !== "Auto") {
+      return `<div class="warning-box"><strong>Auto policy required.</strong> Search and open an active Auto policy to generate an ID card.</div>`;
+    }
+    const v = p.data?.vehicles?.[0] || {};
+    const d = p.data?.drivers?.[0] || {};
+    return `<section class="card">
+      <h2>Insurance Identification Card Preview</h2>
+      <div class="id-card-preview" id="id-card-print">
+        <div class="id-card-head">
+          <div><strong>CarrierOps Mutual Insurance</strong><br><small>TRAINING AUTO INSURANCE ID CARD</small></div>
+          <div><strong>NAIC 19999</strong></div>
+        </div>
+        <div class="id-card-body">
+          ${idField("Policy Number", p.policy_number)}
+          ${idField("Named Insured", p.named_insured)}
+          ${idField("Effective Date", formatDate(p.effective_date))}
+          ${idField("Expiration Date", formatDate(p.expiration_date))}
+          ${idField("Vehicle", `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "Not entered")}
+          ${idField("VIN", v.vin || "Not entered")}
+          ${idField("Primary Driver", d.name || p.named_insured)}
+          ${idField("Agency", p.agency || "Training Agency")}
+        </div>
+      </div>
+      <div class="view-actions" style="margin-top:1rem">
+        <button class="btn primary" data-action="download-id-card">Download ID Card HTML</button>
+        <button class="btn subtle" onclick="window.print()">Print / Save as PDF</button>
+      </div>
+    </section>`;
+  }
+
+  function idField(label, value) {
+    return `<div class="id-field"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`;
+  }
+
+  async function renderPayments() {
+    $("#view").innerHTML = `
+      ${viewHead("Payment Center", "Pull up a policy, post payment, and generate a receipt.", "")}
+      <section class="card">
+        ${searchStrip("payment-search", "Policy number or named insured")}
+        <div id="payment-search-results" class="results-list"></div>
+      </section>
+      <section id="payment-panel" style="margin-top:1rem">${state.activePolicy ? paymentPanel(state.activePolicy) : ""}</section>
+    `;
+  }
+
+  function paymentPanel(p) {
+    return `<section class="card">
+      <h2>Payment Processing — ${esc(p.policy_number)}</h2>
+      <div class="grid four">
+        <div class="metric"><div class="label">Named Insured</div><div class="value" style="font-size:1.1rem">${esc(p.named_insured)}</div></div>
+        <div class="metric"><div class="label">Status</div><div class="value" style="font-size:1.1rem">${esc(p.status)}</div></div>
+        <div class="metric"><div class="label">Premium</div><div class="value" style="font-size:1.3rem">${formatMoney(p.premium)}</div></div>
+        <div class="metric"><div class="label">Current Balance</div><div class="value" style="font-size:1.3rem">${formatMoney(p.balance)}</div></div>
+      </div>
+      <form id="payment-form" class="form-section" style="margin-top:1rem">
+        <h3>Post Payment</h3>
+        <div class="form-grid">
+          <label class="span-3">Payment Amount
+            <input name="amount" type="number" min="1" step="0.01" required placeholder="0.00" />
+          </label>
+          <label class="span-3">Payment Method
+            <select name="payment_method"><option>ACH</option><option>Credit Card</option><option>Debit Card</option><option>Agency Sweep</option><option>Check</option></select>
+          </label>
+          <label class="span-3">Payment Date
+            <input name="payment_date" type="date" value="${today()}" required />
+          </label>
+          <label class="span-3">Payer Name
+            <input name="payer_name" placeholder="Name on payment" required />
+          </label>
+          <label class="span-12">Payment Notes / Authorization Remark
+            <textarea name="notes" placeholder="Document authorization, card/check details not stored, and confirmation provided."></textarea>
+          </label>
+        </div>
+        <button class="btn primary" type="submit">Submit Payment</button>
+      </form>
+      <div id="payment-output">${state.lastReceipt ? receiptHtml(state.lastReceipt) : ""}</div>
+    </section>`;
+  }
+
+  function receiptHtml(r) {
+    return `<div class="success-box"><strong>Payment posted.</strong> Confirmation ${esc(r.confirmation_number)} for ${formatMoney(r.amount)}.</div>
+      <button class="btn subtle" data-action="download-receipt">Download Receipt</button>`;
+  }
+
+  async function renderEndorsements() {
+    $("#view").innerHTML = `
+      ${viewHead("Endorsement Processing", "Pull up a policy, process changes, upload supporting documents, and generate endorsement packet.", "")}
+      <section class="card">
+        ${searchStrip("endorsement-search", "Policy number or named insured")}
+        <div id="endorsement-search-results" class="results-list"></div>
+      </section>
+      <section id="endorsement-panel" style="margin-top:1rem">${state.activePolicy ? endorsementPanel(state.activePolicy) : ""}</section>
+    `;
+    await renderDocumentList();
+  }
+
+  function endorsementPanel(p) {
+    return `<section class="card">
+      <h2>Endorsement Workbench — ${esc(p.policy_number)}</h2>
+      <div class="info-box"><strong>Carrier process:</strong> Verify insured, confirm effective date, capture exact change, upload required document if applicable, review premium impact, add remark, submit for processing.</div>
+      <form id="endorsement-form" class="form-section">
+        <h3>Endorsement Request</h3>
+        <div class="form-grid">
+          <label class="span-4">Endorsement Type
+            <select name="endorsement_type" required>
+              <option>Add Vehicle</option>
+              <option>Remove Vehicle</option>
+              <option>Add Driver</option>
+              <option>Remove Driver</option>
+              <option>Address Change</option>
+              <option>Coverage Change</option>
+              <option>Lienholder / Mortgagee Change</option>
+              <option>Named Insured Correction</option>
+              <option>Document Update Only</option>
+            </select>
+          </label>
+          <label class="span-4">Requested Effective Date
+            <input name="effective_date" type="date" value="${today()}" required />
+          </label>
+          <label class="span-4">Requested By
+            <select name="requested_by"><option>Named Insured</option><option>Agent</option><option>Lienholder/Mortgagee</option><option>Carrier Underwriter</option></select>
+          </label>
+          <label class="span-6">Current Information
+            <textarea name="current_info" placeholder="What is currently on the policy?"></textarea>
+          </label>
+          <label class="span-6">New Information / Change Requested
+            <textarea name="new_info" placeholder="Enter exact endorsement change. Example: Add 2021 Toyota Camry VIN..."></textarea>
+          </label>
+          <label class="span-4">Estimated Premium Impact
+            <select name="premium_impact"><option>No Change</option><option>Increase</option><option>Decrease</option><option>Referral Required</option></select>
+          </label>
+          <label class="span-4">Estimated Premium Delta
+            <input name="premium_delta" type="number" step="0.01" placeholder="0.00" />
+          </label>
+          <label class="span-4">Processing Status
+            <select name="status"><option>Pending Review</option><option>Submitted to Carrier</option><option>Completed</option><option>Referral Required</option></select>
+          </label>
+          <label class="span-12">Processor Remark
+            <textarea name="remark" required placeholder="Document verification, requested change, documents uploaded, and next steps."></textarea>
+          </label>
+        </div>
+        <div class="doc-drop">
+          <strong>Upload endorsement documents</strong>
+          <p>Examples: signed request, VIN proof, driver license, mortgagee clause, updated declarations.</p>
+          <input name="documents" type="file" multiple />
+        </div>
+        <div class="view-actions" style="margin-top:1rem">
+          <button class="btn primary" type="submit">Submit Endorsement</button>
+          <button class="btn subtle" type="button" data-action="download-endorsement-guide">How to Process Endorsement</button>
+        </div>
+      </form>
+      <div id="endorsement-output">${state.lastEndorsement ? endorsementHtml(state.lastEndorsement) : ""}</div>
+      <div id="document-list"></div>
+    </section>`;
+  }
+
+  function endorsementHtml(e) {
+    return `<div class="success-box"><strong>Endorsement saved.</strong> ${esc(e.endorsement_type)} is ${esc(e.status)}.</div>
+      <button class="btn subtle" data-action="download-endorsement-packet">Download Endorsement Packet</button>`;
+  }
+
+  async function renderCancellations() {
+    $("#view").innerHTML = `
+      ${viewHead("Policy Cancellation", "Pull up a policy, document cancellation reason, and generate cancellation workflow packet.", "")}
+      <section class="card">
+        ${searchStrip("cancel-search", "Policy number or named insured")}
+        <div id="cancel-search-results" class="results-list"></div>
+      </section>
+      <section id="cancel-panel" style="margin-top:1rem">${state.activePolicy ? cancellationPanel(state.activePolicy) : ""}</section>
+    `;
+  }
+
+  function cancellationPanel(p) {
+    return `<section class="card">
+      <h2>Cancellation Workbench — ${esc(p.policy_number)}</h2>
+      <div class="warning-box"><strong>Training reminder:</strong> Always verify state rules, required notice period, mortgagee/lienholder notice, refund method, and whether cancellation can be backdated.</div>
+      <form id="cancellation-form" class="form-section">
+        <h3>Cancellation Request</h3>
+        <div class="form-grid">
+          <label class="span-4">Cancellation Type
+            <select name="cancellation_type"><option>Insured Request</option><option>Non-Payment</option><option>Duplicate Coverage</option><option>Sold Vehicle / Property</option><option>Underwriting Reason</option><option>Flat Cancel</option></select>
+          </label>
+          <label class="span-4">Requested Effective Date
+            <input name="effective_date" type="date" required />
+          </label>
+          <label class="span-4">Requested By
+            <select name="requested_by"><option>Named Insured</option><option>Agent</option><option>Carrier</option><option>Mortgagee/Lienholder</option></select>
+          </label>
+          <label class="span-4">Proof Received?
+            <select name="proof_received"><option>No</option><option>Yes</option><option>Not Required</option></select>
+          </label>
+          <label class="span-4">Refund Method
+            <select name="refund_method"><option>Carrier Calculates</option><option>Return to Insured</option><option>Return Premium to Agency</option><option>No Refund</option></select>
+          </label>
+          <label class="span-4">Status
+            <select name="status"><option>Pending Review</option><option>Submitted to Carrier</option><option>Completed</option></select>
+          </label>
+          <label class="span-12">Cancellation Reason / Remark
+            <textarea name="reason" required placeholder="Document cancellation reason, verified party, effective date requested, proof received, and next steps."></textarea>
+          </label>
+        </div>
+        <div class="view-actions">
+          <button class="btn danger" type="submit">Submit Cancellation Request</button>
+          <button class="btn subtle" type="button" data-action="download-cancel-guide">How to Cancel Policy</button>
+        </div>
+      </form>
+      <div id="cancel-output">${state.lastCancellation ? cancellationHtml(state.lastCancellation) : ""}</div>
+    </section>`;
+  }
+
+  function cancellationHtml(c) {
+    return `<div class="success-box"><strong>Cancellation request saved.</strong> Status: ${esc(c.status)}.</div>
+      <button class="btn subtle" data-action="download-cancel-packet">Download Cancellation Packet</button>`;
+  }
+
+  async function renderRemarketing() {
+    $("#view").innerHTML = `
+      ${viewHead("Quoting & Remarketing", "Pull up an expiring or high-premium account, review risk, and generate carrier comparison.", "")}
+      <section class="card">
+        ${searchStrip("remarket-search", "Policy number or named insured")}
+        <div id="remarket-search-results" class="results-list"></div>
+      </section>
+      <section id="remarket-panel" style="margin-top:1rem">${state.activePolicy ? remarketingPanel(state.activePolicy) : ""}</section>
+    `;
+  }
+
+  function remarketingPanel(p) {
+    return `<section class="card">
+      <h2>Remarketing Submission — ${esc(p.policy_number)}</h2>
+      <form id="remarketing-form" class="form-section">
+        <div class="form-grid">
+          <label class="span-4">Reason for Remarketing
+            <select name="reason"><option>Renewal Premium Increase</option><option>Client Requested Lower Premium</option><option>Carrier Non-Renewal</option><option>Coverage Improvement</option><option>New Market Appetite</option></select>
+          </label>
+          <label class="span-4">Renewal / Target Effective Date
+            <input name="target_effective" type="date" value="${p.expiration_date || today()}" />
+          </label>
+          <label class="span-4">Target Premium
+            <input name="target_premium" type="number" placeholder="${Math.round(Number(p.premium || 0) * 0.92)}" />
+          </label>
+          <label class="span-12">Marketing Notes
+            <textarea name="notes" placeholder="Summarize risk, current carrier issues, missing information, and desired coverage."></textarea>
+          </label>
+        </div>
+        <button class="btn primary" type="submit">Generate Remarketing Comparison</button>
+      </form>
+      <div id="remarket-output">${state.lastRemarketing ? remarketingHtml(state.lastRemarketing) : ""}</div>
+    </section>`;
+  }
+
+  function remarketingHtml(r) {
+    return `<div class="card soft">
+      <h3>Carrier Comparison</h3>
+      <div class="table-wrap"><table><thead><tr><th>Market</th><th>Indication</th><th>Status</th><th>Notes</th></tr></thead><tbody>
+      ${r.markets.map((m) => `<tr><td>${esc(m.market)}</td><td>${formatMoney(m.indication)}</td><td><span class="status-pill ${m.status.toLowerCase()}">${esc(m.status)}</span></td><td>${esc(m.notes)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <button class="btn subtle" data-action="download-remarket-summary" style="margin-top:1rem">Download Remarketing Summary</button>
+    </div>`;
+  }
+
+  async function renderWorkQueue() {
+    const [endorsements, cancellations, quotes, payments] = await Promise.all([
+      store.list("endorsements", { orderBy: "created_at" }),
+      store.list("cancellations", { orderBy: "created_at" }),
+      store.list("quotes", { orderBy: "created_at" }),
+      store.list("payments", { orderBy: "created_at" })
+    ]);
+    const queue = [
+      ...endorsements.map((x) => ({ type: "Endorsement", title: x.endorsement_type, policy: x.policy_number, status: x.status, created_at: x.created_at })),
+      ...cancellations.map((x) => ({ type: "Cancellation", title: x.cancellation_type, policy: x.policy_number, status: x.status, created_at: x.created_at })),
+      ...quotes.filter((q) => q.status === "Referral").map((x) => ({ type: "Quote Referral", title: x.quote_number, policy: "", status: x.status, created_at: x.created_at })),
+      ...payments.slice(0, 8).map((x) => ({ type: "Payment", title: x.confirmation_number, policy: x.policy_number, status: "Completed", created_at: x.created_at }))
+    ].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+
+    $("#view").innerHTML = `
+      ${viewHead("Work Queue", "Open service requests and trainee activities across the carrier portal.", `
+        <button class="btn subtle" data-action="export-workqueue">Export Queue CSV</button>
+      `)}
+      <section class="card">
+        ${queue.length ? queue.map((item) => `<div class="queue-item">
+          <div><p class="eyebrow">${esc(item.type)}</p><h3>${esc(item.title || "Service Item")}</h3><p>${esc(item.policy || "No policy")} • ${formatDate(item.created_at)}</p></div>
+          <span class="status-pill ${String(item.status || "open").toLowerCase().replace(/\s+/g, "-")}">${esc(item.status || "Open")}</span>
+        </div>`).join("") : `<div class="empty-state">No work queue items yet.</div>`}
+      </section>
+    `;
+  }
+
+  async function renderTrainer() {
+    if (state.user?.role !== "Trainer") {
+      $("#view").innerHTML = `${viewHead("Trainer QA", "Trainer/TL access required.", "")}<div class="warning-box">Please log in as Trainer / Team Lead to access this section.</div>`;
+      return;
+    }
+    const [logins, audit, policies, endorsements] = await Promise.all([
+      store.list("logins", { orderBy: "created_at" }),
+      store.list("audit", { orderBy: "created_at" }),
+      store.list("policies", { orderBy: "created_at" }),
+      store.list("endorsements", { orderBy: "created_at" })
+    ]);
+    $("#view").innerHTML = `
+      ${viewHead("Trainer QA Dashboard", "Review VA activity, policy work, logs, and export training records.", `
+        <button class="btn subtle" data-action="export-all-csv">Export Audit CSV</button>
+        <button class="btn subtle" data-action="backup-json">Backup JSON</button>
+        <label class="btn subtle">Import JSON <input id="backup-import" type="file" accept="application/json" class="hidden"></label>
+      `)}
+      <div class="grid four">
+        <div class="metric"><div class="value">${logins.length}</div><div class="label">VA Logins</div></div>
+        <div class="metric"><div class="value">${audit.length}</div><div class="label">Audit Events</div></div>
+        <div class="metric"><div class="value">${policies.length}</div><div class="label">Policies Created</div></div>
+        <div class="metric"><div class="value">${endorsements.length}</div><div class="label">Endorsements</div></div>
+      </div>
+      <div class="grid two" style="margin-top:1rem">
+        <section class="card">
+          <h2>Login History</h2>
+          <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Date</th></tr></thead><tbody>
+            ${logins.slice(0, 30).map((l) => `<tr><td>${esc(l.user_name)}</td><td>${esc(l.user_email)}</td><td>${esc(l.role)}</td><td>${formatDate(l.created_at)}</td></tr>`).join("") || `<tr><td colspan="4">No login records.</td></tr>`}
+          </tbody></table></div>
+        </section>
+        <section class="card">
+          <h2>Audit Trail</h2>
+          ${activityList(audit.slice(0, 30))}
+        </section>
+      </div>
+    `;
+  }
+
+  function demoPolicies() {
+    return [
+      {
+        policy_number: "LVA-AUTO-1001",
+        policy_type: "Auto",
+        named_insured: "Jamie Rivera",
+        email: "jamie.rivera@example.com",
+        phone: "(555) 013-1001",
+        address: "123 Training Ave, Columbus, OH 43004",
+        status: "Active",
+        carrier: "CarrierOps Mutual",
+        agency: "LAVA Training Agency",
+        effective_date: "2026-01-01",
+        expiration_date: "2027-01-01",
+        premium: 1487,
+        balance: 742,
+        risk_score: 39,
+        data: {
+          vehicles: [{ year: "2022", make: "Honda", model: "Civic EX", vin: "1HGBH41JXMN109186", use: "Commute" }],
+          drivers: [{ name: "Jamie Rivera", dob: "1991-04-08", license_state: "OH" }],
+          coverages: { bi: "100/300", pd: "100,000", comp: "500", collision: "500" }
+        }
+      },
+      {
+        policy_number: "LVA-HOME-2001",
+        policy_type: "Home",
+        named_insured: "Morgan Santos",
+        email: "morgan.santos@example.com",
+        phone: "(555) 013-2001",
+        address: "742 Sample Ridge Dr, Tampa, FL 33602",
+        status: "Active",
+        carrier: "CarrierOps Mutual",
+        agency: "LAVA Training Agency",
+        effective_date: "2026-03-15",
+        expiration_date: "2027-03-15",
+        premium: 2215,
+        balance: 1108,
+        risk_score: 47,
+        data: {
+          property: { year_built: "2008", roof_year: "2019", construction: "Masonry", coverage_a: "465000", occupancy: "Primary" },
+          coverages: { form: "HO3", deductible: "2500", water_backup: "10,000" }
+        }
+      }
+    ];
+  }
+
+  async function loadDemoPolicies() {
+    for (const policy of demoPolicies()) {
+      const existing = await store.getPolicy(policy.policy_number);
+      if (!existing) await store.save("policies", policy);
+    }
+    await store.audit("Demo policies loaded", { policy_number: "LVA-AUTO-1001 / LVA-HOME-2001" }, state.user || {});
+    toast("Demo policies loaded. Try LVA-AUTO-1001 or Jamie Rivera.", "success");
+    await render();
+  }
+
+  function buildPolicyFromQuote(q) {
+    const d = q.data;
+    const policyNumber = makeId(d.policy_type === "Auto" ? "AUTO" : "HOME");
+    const p = {
+      policy_number: policyNumber,
+      policy_type: d.policy_type,
+      named_insured: d.named_insured,
+      email: d.email,
+      phone: d.phone,
+      address: d.policy_type === "Auto" ? (d.garaging_address || d.mailing_address) : (d.property_address || d.mailing_address),
+      status: "Active",
+      carrier: "CarrierOps Mutual",
+      agency: d.agency,
+      effective_date: d.effective_date,
+      expiration_date: addYears(d.effective_date, 1),
+      premium: q.premium,
+      balance: q.premium,
+      risk_score: q.risk_score,
+      data: d.policy_type === "Auto" ? {
+        vehicles: [{ year: d.vehicle_year, make: d.vehicle_make, model: d.vehicle_model, vin: d.vin, use: d.vehicle_use }],
+        drivers: [{ name: d.driver_name || d.named_insured, dob: d.driver_dob, license_state: d.license_state }],
+        coverages: { bi: d.bi_limit, pd: d.pd_limit, comp: d.comp_ded, collision: d.coll_ded },
+        quote: d
+      } : {
+        property: { year_built: d.year_built, roof_year: d.roof_year, construction: d.construction, coverage_a: d.coverage_a, occupancy: d.occupancy },
+        coverages: { form: d.home_form, deductible: d.home_ded, water_backup: d.water_backup, contents: d.contents },
+        quote: d
+      }
+    };
+    return p;
+  }
+
+  async function handlePolicySearch(inputId, resultsId) {
+    const term = $(`#${inputId}`)?.value || "";
+    const results = await store.findPolicy(term);
+    const target = $(`#${resultsId}`);
+    if (target) target.innerHTML = policyResultList(results);
+    if (!results.length) toast("No policy found. You can create a new quote or load demo policies.", "info");
+  }
+
+  async function openPolicy(policyNumber) {
+    const policy = await store.getPolicy(policyNumber);
+    if (!policy) return toast("Policy was not found.", "error");
+    state.activePolicy = policy;
+    await store.audit("Policy opened", { policy_number: policy.policy_number }, state.user || {});
+    if (state.route === "dashboard") {
+      state.route = "search";
+      history.replaceState(null, "", "#search");
+      updateChrome();
+    }
+    await render();
+  }
+
+  async function handleQuoteSubmit(form) {
+    const data = formData(form);
+    const quote = rateQuote(data);
+    state.quoteResult = quote;
+    await store.save("quotes", {
+      quote_number: quote.quote_number,
+      quote_type: quote.policy_type,
+      named_insured: data.named_insured,
+      status: quote.status,
+      premium: quote.premium,
+      data: quote,
+      created_by: state.user?.name || "",
+      created_at: new Date().toISOString()
+    });
+    await store.audit("Quote rated", { quote_number: quote.quote_number, policy_type: quote.policy_type, status: quote.status, premium: quote.premium }, state.user || {});
+    $("#quote-output").innerHTML = `
+      <section class="card">
+        <div class="view-head">
+          <div><p class="eyebrow">Quote Result</p><h1>${esc(quote.quote_number)}</h1><p class="muted">${esc(quote.policy_type)} quote for ${esc(data.named_insured)}</p></div>
+          <span class="status-pill ${quote.status.toLowerCase()}">${esc(quote.status)}</span>
+        </div>
+        <div class="grid four">
+          <div class="metric"><div class="label">Annual Premium</div><div class="value">${formatMoney(quote.premium)}</div></div>
+          <div class="metric"><div class="label">Monthly Estimate</div><div class="value">${formatMoney(quote.monthly)}</div></div>
+          <div class="metric"><div class="label">Down Payment</div><div class="value">${formatMoney(quote.down_payment)}</div></div>
+          <div class="metric"><div class="label">Risk Score</div><div class="value">${quote.risk_score}/100</div></div>
+        </div>
+        ${quote.flags.length ? `<div class="warning-box"><strong>Underwriting flags:</strong><ul>${quote.flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<div class="success-box">No major underwriting flags based on training rules.</div>`}
+      </section>`;
+    $("#bind-quote-btn").classList.toggle("hidden", quote.status === "Declined");
+    toast("Quote rated successfully.", "success");
+  }
+
+  async function bindQuote() {
+    if (!state.quoteResult) return toast("Rate a quote first.", "error");
+    const policy = buildPolicyFromQuote(state.quoteResult);
+    await store.save("policies", policy);
+    await store.audit("Policy bound from quote", { policy_number: policy.policy_number, quote_number: state.quoteResult.quote_number }, state.user || {});
+    state.activePolicy = policy;
+    toast(`Policy created: ${policy.policy_number}`, "success");
+    await navigate("search");
+  }
+
+  async function handlePaymentSubmit(form) {
+    if (!state.activePolicy) return toast("Open a policy first.", "error");
+    const data = formData(form);
+    const amount = Number(data.amount || 0);
+    const receipt = {
+      policy_number: state.activePolicy.policy_number,
+      amount,
+      payment_method: data.payment_method,
+      payment_date: data.payment_date,
+      payer_name: data.payer_name,
+      notes: data.notes,
+      confirmation_number: makeId("PMT"),
+      created_by: state.user?.name || "",
+      created_at: new Date().toISOString()
+    };
+    state.lastReceipt = await store.save("payments", receipt);
+    const updated = { ...state.activePolicy, balance: Math.max(0, Number(state.activePolicy.balance || 0) - amount), updated_at: new Date().toISOString() };
+    await store.save("policies", updated);
+    state.activePolicy = updated;
+    await store.audit("Payment posted", { policy_number: updated.policy_number, amount, confirmation_number: receipt.confirmation_number }, state.user || {});
+    toast("Payment posted and receipt generated.", "success");
+    await renderPayments();
+  }
+
+  async function handleEndorsementSubmit(form) {
+    if (!state.activePolicy) return toast("Open a policy first.", "error");
+    const data = formData(form);
+    const endorsement = await store.save("endorsements", {
+      policy_number: state.activePolicy.policy_number,
+      endorsement_type: data.endorsement_type,
+      effective_date: data.effective_date,
+      requested_by: data.requested_by,
+      current_info: data.current_info,
+      new_info: data.new_info,
+      premium_impact: data.premium_impact,
+      premium_delta: Number(data.premium_delta || 0),
+      status: data.status,
+      remark: data.remark,
+      created_by: state.user?.name || "",
+      created_at: new Date().toISOString()
+    });
+    const fileInput = form.querySelector("input[type=file]");
+    if (fileInput?.files?.length) {
+      for (const file of fileInput.files) {
+        await store.uploadDocument(file, {
+          policy_number: state.activePolicy.policy_number,
+          document_type: data.endorsement_type,
+          uploaded_by: state.user?.name || "",
+          related_record_id: endorsement.id
+        });
+      }
+    }
+    state.lastEndorsement = endorsement;
+    await store.audit("Endorsement submitted", { policy_number: state.activePolicy.policy_number, endorsement_type: data.endorsement_type, status: data.status }, state.user || {});
+    toast("Endorsement saved. Documents uploaded if selected.", "success");
+    await renderEndorsements();
+    await renderDocumentList();
+  }
+
+  async function renderDocumentList() {
+    const panel = $("#document-list");
+    if (!panel || !state.activePolicy) return;
+    const docs = await store.list("documents", { eq: { policy_number: state.activePolicy.policy_number }, orderBy: "created_at" });
+    panel.innerHTML = `<h3>Uploaded Documents</h3>${docs.length ? `<div class="table-wrap"><table><thead><tr><th>Document</th><th>Type</th><th>Uploaded By</th><th>Action</th></tr></thead><tbody>
+      ${docs.map((d) => `<tr><td>${esc(d.file_name)}</td><td>${esc(d.document_type)}</td><td>${esc(d.uploaded_by)}</td><td><button class="btn subtle" data-action="download-document" data-doc="${esc(d.id)}">Download</button></td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="empty-state">No documents uploaded yet.</div>`}`;
+  }
+
+  async function handleCancellationSubmit(form) {
+    if (!state.activePolicy) return toast("Open a policy first.", "error");
+    const data = formData(form);
+    const cancellation = await store.save("cancellations", {
+      policy_number: state.activePolicy.policy_number,
+      cancellation_type: data.cancellation_type,
+      effective_date: data.effective_date,
+      requested_by: data.requested_by,
+      proof_received: data.proof_received,
+      refund_method: data.refund_method,
+      status: data.status,
+      reason: data.reason,
+      created_by: state.user?.name || "",
+      created_at: new Date().toISOString()
+    });
+    state.lastCancellation = cancellation;
+    const updated = { ...state.activePolicy, status: data.status === "Completed" ? "Cancelled" : "Pending Cancellation", updated_at: new Date().toISOString() };
+    await store.save("policies", updated);
+    state.activePolicy = updated;
+    await store.audit("Cancellation submitted", { policy_number: updated.policy_number, cancellation_type: data.cancellation_type, status: data.status }, state.user || {});
+    toast("Cancellation request saved.", "success");
+    await renderCancellations();
+  }
+
+  async function handleRemarketingSubmit(form) {
+    if (!state.activePolicy) return toast("Open a policy first.", "error");
+    const data = formData(form);
+    const base = Number(state.activePolicy.premium || 1000);
+    const risk = Number(state.activePolicy.risk_score || 50);
+    const markets = [
+      { market: "CarrierOps Preferred", indication: Math.round(base * (risk > 60 ? 1.08 : 0.93)), status: risk > 70 ? "Referral" : "Approved", notes: risk > 70 ? "Needs underwriter review." : "Strong fit based on training appetite." },
+      { market: "Summit Standard", indication: Math.round(base * 0.98), status: "Approved", notes: "Competitive standard market." },
+      { market: "Harbor Select", indication: Math.round(base * (risk > 55 ? 1.12 : 0.9)), status: risk > 80 ? "Declined" : "Approved", notes: risk > 80 ? "Outside appetite." : "Potential savings opportunity." }
+    ];
+    const remarketing = await store.save("remarketing", {
+      policy_number: state.activePolicy.policy_number,
+      reason: data.reason,
+      target_effective: data.target_effective,
+      target_premium: Number(data.target_premium || 0),
+      notes: data.notes,
+      markets,
+      created_by: state.user?.name || "",
+      created_at: new Date().toISOString()
+    });
+    state.lastRemarketing = remarketing;
+    await store.audit("Remarketing comparison generated", { policy_number: state.activePolicy.policy_number, reason: data.reason }, state.user || {});
+    toast("Remarketing comparison generated.", "success");
+    await renderRemarketing();
+  }
+
+  async function downloadCurrentDocument(docId) {
+    const docs = await store.list("documents");
+    const doc = docs.find((d) => d.id === docId);
+    if (!doc) return toast("Document not found.", "error");
+    const url = await store.getDocumentDownloadUrl(doc);
+    if (!url) return toast("No download URL available.", "error");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc.file_name || "document";
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function downloadIdCard() {
+    if (!state.activePolicy) return;
+    const p = state.activePolicy;
+    const v = p.data?.vehicles?.[0] || {};
+    downloadHtml(`${p.policy_number}-auto-id-card.html`, "Auto ID Card", `
+      <div class="brand"><h1>CarrierOps Mutual Insurance</h1><p>Training Auto Insurance ID Card • NAIC 19999</p></div>
+      <div class="box"><h2>${esc(p.policy_number)}</h2><p><strong>Named Insured:</strong> ${esc(p.named_insured)}</p><p><strong>Effective:</strong> ${formatDate(p.effective_date)} to ${formatDate(p.expiration_date)}</p></div>
+      <table><tr><th>Vehicle</th><td>${esc(`${v.year || ""} ${v.make || ""} ${v.model || ""}`)}</td></tr><tr><th>VIN</th><td>${esc(v.vin || "Not entered")}</td></tr><tr><th>Agency</th><td>${esc(p.agency || "Training Agency")}</td></tr></table>
+      <small>This is a simulator document for training only.</small>
+    `);
+  }
+
+  function downloadReceipt() {
+    const r = state.lastReceipt;
+    if (!r) return;
+    downloadHtml(`${r.confirmation_number}-payment-receipt.html`, "Payment Receipt", `
+      <div class="brand"><h1>Payment Receipt</h1><p>CarrierOps Training Portal</p></div>
+      <div class="box"><h2>${esc(r.confirmation_number)}</h2><p><strong>Policy:</strong> ${esc(r.policy_number)}</p><p><strong>Amount:</strong> ${formatMoney(r.amount)}</p><p><strong>Method:</strong> ${esc(r.payment_method)}</p><p><strong>Date:</strong> ${formatDate(r.payment_date)}</p><p><strong>Payer:</strong> ${esc(r.payer_name)}</p></div>
+      <p>${esc(r.notes || "")}</p>
+    `);
+  }
+
+  function downloadEndorsementPacket() {
+    const e = state.lastEndorsement;
+    if (!e) return;
+    downloadHtml(`${e.policy_number}-endorsement-packet.html`, "Endorsement Packet", `
+      <div class="brand"><h1>Endorsement Processing Packet</h1><p>Training document</p></div>
+      <div class="box"><h2>${esc(e.endorsement_type)}</h2><p><strong>Policy:</strong> ${esc(e.policy_number)}</p><p><strong>Effective:</strong> ${formatDate(e.effective_date)}</p><p><strong>Status:</strong> ${esc(e.status)}</p><p><strong>Premium Delta:</strong> ${formatMoney(e.premium_delta)}</p></div>
+      <h3>Current Information</h3><p>${esc(e.current_info)}</p>
+      <h3>New Information</h3><p>${esc(e.new_info)}</p>
+      <h3>Processor Remark</h3><p>${esc(e.remark)}</p>
+    `);
+  }
+
+  function downloadCancellationPacket() {
+    const c = state.lastCancellation;
+    if (!c) return;
+    downloadHtml(`${c.policy_number}-cancellation-packet.html`, "Cancellation Packet", `
+      <div class="brand"><h1>Cancellation Request Packet</h1><p>Training document</p></div>
+      <div class="box"><h2>${esc(c.cancellation_type)}</h2><p><strong>Policy:</strong> ${esc(c.policy_number)}</p><p><strong>Effective:</strong> ${formatDate(c.effective_date)}</p><p><strong>Status:</strong> ${esc(c.status)}</p><p><strong>Requested By:</strong> ${esc(c.requested_by)}</p></div>
+      <h3>Reason / Remark</h3><p>${esc(c.reason)}</p>
+    `);
+  }
+
+  function downloadRemarketingSummary() {
+    const r = state.lastRemarketing;
+    if (!r) return;
+    downloadHtml(`${r.policy_number}-remarketing-summary.html`, "Remarketing Summary", `
+      <div class="brand"><h1>Remarketing Summary</h1><p>Training document</p></div>
+      <div class="box"><p><strong>Policy:</strong> ${esc(r.policy_number)}</p><p><strong>Reason:</strong> ${esc(r.reason)}</p><p><strong>Target Effective:</strong> ${formatDate(r.target_effective)}</p></div>
+      <table><thead><tr><th>Market</th><th>Indication</th><th>Status</th><th>Notes</th></tr></thead><tbody>${r.markets.map((m) => `<tr><td>${esc(m.market)}</td><td>${formatMoney(m.indication)}</td><td>${esc(m.status)}</td><td>${esc(m.notes)}</td></tr>`).join("")}</tbody></table>
+    `);
+  }
+
+  function downloadGuide(type) {
+    const isCancel = type === "cancel";
+    const title = isCancel ? "How to Cancel a Policy" : "How to Process an Endorsement";
+    const steps = isCancel ? [
+      "Pull up the correct policy by policy number or named insured.",
+      "Verify requester authority and confirm the effective cancellation date.",
+      "Review state rules, lienholder/mortgagee notice requirements, and refund handling.",
+      "Collect proof if required, such as replacement coverage or sold vehicle/property documentation.",
+      "Enter the cancellation request, document detailed remarks, and generate the packet.",
+      "Submit to carrier and monitor status until completed."
+    ] : [
+      "Pull up the correct policy and verify the named insured.",
+      "Identify the endorsement type and required effective date.",
+      "Capture current information and exact new information.",
+      "Upload required supporting documents such as signed forms, VIN proof, license, mortgagee clause, or declarations.",
+      "Estimate premium impact and document underwriting flags.",
+      "Submit the endorsement and download the processing packet for training review."
+    ];
+    downloadHtml(`${title.toLowerCase().replace(/\s+/g, "-")}.html`, title, `<div class="brand"><h1>${esc(title)}</h1></div><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`);
+  }
+
+  async function exportWorkQueue() {
+    const endorsements = await store.list("endorsements");
+    const cancellations = await store.list("cancellations");
+    const rows = [...endorsements.map((e) => ({ type: "Endorsement", ...e })), ...cancellations.map((c) => ({ type: "Cancellation", ...c }))];
+    downloadText("carrierops-workqueue.csv", csv(rows), "text/csv");
+  }
+
+  async function exportAudit() {
+    const audit = await store.list("audit");
+    downloadText("carrierops-audit.csv", csv(audit), "text/csv");
+  }
+
+  async function backupJson() {
+    if (store.isOnline()) {
+      const collections = ["policies", "quotes", "endorsements", "payments", "cancellations", "documents", "remarketing", "audit", "logins"];
+      const payload = {};
+      for (const c of collections) payload[c] = await store.list(c);
+      downloadText("carrierops-supabase-backup.json", JSON.stringify(payload, null, 2), "application/json");
+    } else {
+      downloadText("carrierops-local-backup.json", JSON.stringify(store.exportLocalBackup(), null, 2), "application/json");
+    }
+  }
+
+  function setupEvents() {
+    $("#login-role").addEventListener("change", () => {
+      $("#trainer-code-wrap").classList.toggle("hidden", $("#login-role").value !== "Trainer");
+    });
+
+    $("#login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const role = $("#login-role").value;
+      if (role === "Trainer" && $("#trainer-code").value !== (window.LAVA_TRAINER_CODE || "LAVA2026")) {
+        toast("Invalid trainer code.", "error");
+        return;
+      }
+      const user = {
+        name: $("#login-name").value.trim(),
+        email: $("#login-email").value.trim(),
+        role,
+        login_at: new Date().toISOString()
+      };
+      setUser(user);
+      await store.logLogin(user);
+      $("#login-screen").classList.add("hidden");
+      $("#app-shell").classList.remove("hidden");
+      updateChrome();
+      await navigate(location.hash.replace("#", "") || "dashboard");
+    });
+
+    document.body.addEventListener("click", async (e) => {
+      const routeBtn = e.target.closest("[data-route]");
+      if (routeBtn) {
+        await navigate(routeBtn.dataset.route);
+        return;
+      }
+      const actionBtn = e.target.closest("[data-action]");
+      if (!actionBtn) return;
+      const action = actionBtn.dataset.action;
+      if (action === "policy-search") return handlePolicySearch(actionBtn.dataset.input, actionBtn.dataset.results);
+      if (action === "open-policy") return openPolicy(actionBtn.dataset.policy);
+      if (action === "load-demo") return loadDemoPolicies();
+      if (action === "bind-quote") return bindQuote();
+      if (action === "reset-quote") { state.quoteResult = null; await renderQuote(); return; }
+      if (action === "download-id-card") return downloadIdCard();
+      if (action === "download-receipt") return downloadReceipt();
+      if (action === "download-endorsement-packet") return downloadEndorsementPacket();
+      if (action === "download-cancel-packet") return downloadCancellationPacket();
+      if (action === "download-remarket-summary") return downloadRemarketingSummary();
+      if (action === "download-endorsement-guide") return downloadGuide("endorsement");
+      if (action === "download-cancel-guide") return downloadGuide("cancel");
+      if (action === "download-document") return downloadCurrentDocument(actionBtn.dataset.doc);
+      if (action === "export-workqueue") return exportWorkQueue();
+      if (action === "export-all-csv") return exportAudit();
+      if (action === "backup-json") return backupJson();
+      if (action === "download-readme") return downloadText("carrierops-setup-notes.txt", "Run docs/supabase-setup.sql in Supabase, create storage bucket carrier-documents, and paste URL/anon key in js/config.js. For Netlify: build command blank, publish directory dot.");
+    });
+
+    document.body.addEventListener("submit", async (e) => {
+      if (e.target.id === "quote-form") { e.preventDefault(); await handleQuoteSubmit(e.target); }
+      if (e.target.id === "payment-form") { e.preventDefault(); await handlePaymentSubmit(e.target); }
+      if (e.target.id === "endorsement-form") { e.preventDefault(); await handleEndorsementSubmit(e.target); }
+      if (e.target.id === "cancellation-form") { e.preventDefault(); await handleCancellationSubmit(e.target); }
+      if (e.target.id === "remarketing-form") { e.preventDefault(); await handleRemarketingSubmit(e.target); }
+    });
+
+    $("#quick-demo-btn").addEventListener("click", loadDemoPolicies);
+    $("#logout-btn").addEventListener("click", () => {
+      localStorage.removeItem("lava_carrierops_session");
+      state.user = null;
+      state.activePolicy = null;
+      $("#app-shell").classList.add("hidden");
+      $("#login-screen").classList.remove("hidden");
+    });
+    $("#theme-toggle").addEventListener("click", () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem("lava_theme", next);
+    });
+
+    document.body.addEventListener("change", async (e) => {
+      if (e.target.id === "backup-import") {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        store.importLocalBackup(JSON.parse(text));
+        toast("Backup imported into local mode.", "success");
+        await render();
+      }
+    });
+  }
+
+  async function init() {
+    document.documentElement.dataset.theme = localStorage.getItem("lava_theme") || "";
+    setupEvents();
+    state.user = getUser();
+    if (state.user) {
+      $("#login-screen").classList.add("hidden");
+      $("#app-shell").classList.remove("hidden");
+      updateChrome();
+      await navigate(location.hash.replace("#", "") || "dashboard");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
 })();
