@@ -91,3 +91,7 @@ Morgan Santos
 ## Important security note
 
 The included Supabase SQL allows anonymous read/write because this is a static training simulator. Do not use real customer data. For production, use Supabase Auth, server-side validation, and stricter RLS policies.
+
+## Dashboard Landing Fix
+
+After VA or Trainer login, the simulator now always opens the Dashboard first. Even if the browser previously had `#quote`, `#payments`, or another route in the URL, Enter Portal resets the route to `#dashboard` so trainees start from the correct carrier command center.
