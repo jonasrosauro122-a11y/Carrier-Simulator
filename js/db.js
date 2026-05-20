@@ -64,12 +64,17 @@
 
     async list(collection, options = {}) {
       if (this.online) {
-        let query = this.supabase.from(TABLES[collection]).select("*");
-        if (options.eq) Object.entries(options.eq).forEach(([key, value]) => { query = query.eq(key, value); });
-        if (options.orderBy) query = query.order(options.orderBy, { ascending: options.ascending ?? false });
-        const { data, error } = await query;
-        if (error) throw error;
-        return data || [];
+        try {
+          let query = this.supabase.from(TABLES[collection]).select("*");
+          if (options.eq) Object.entries(options.eq).forEach(([key, value]) => { query = query.eq(key, value); });
+          if (options.orderBy) query = query.order(options.orderBy, { ascending: options.ascending ?? false });
+          const { data, error } = await query;
+          if (error) throw error;
+          return data || [];
+        } catch (err) {
+          console.warn(`Supabase list failed for ${collection}. Falling back to local mode.`, err);
+          this.online = false;
+        }
       }
       let rows = this.localRead(collection);
       if (options.eq) {
@@ -86,9 +91,14 @@
     async save(collection, row) {
       const normalized = this.normalize(row);
       if (this.online) {
-        const { data, error } = await this.supabase.from(TABLES[collection]).upsert(normalized).select().single();
-        if (error) throw error;
-        return data;
+        try {
+          const { data, error } = await this.supabase.from(TABLES[collection]).upsert(normalized).select().single();
+          if (error) throw error;
+          return data;
+        } catch (err) {
+          console.warn(`Supabase save failed for ${collection}. Falling back to local mode.`, err);
+          this.online = false;
+        }
       }
       const rows = this.localRead(collection);
       const idx = rows.findIndex((item) => item.id === normalized.id);
@@ -126,11 +136,17 @@
       let storagePath = "";
       let dataUrl = "";
       if (this.online) {
-        const bucket = this.config.bucket || "carrier-documents";
-        const { error } = await this.supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type || "application/octet-stream" });
-        if (error) throw error;
-        storagePath = path;
-      } else {
+        try {
+          const bucket = this.config.bucket || "carrier-documents";
+          const { error } = await this.supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type || "application/octet-stream" });
+          if (error) throw error;
+          storagePath = path;
+        } catch (err) {
+          console.warn("Supabase document upload failed. Saving document in local browser storage instead.", err);
+          this.online = false;
+        }
+      }
+      if (!this.online) {
         dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
@@ -155,10 +171,15 @@
 
     async getDocumentDownloadUrl(doc) {
       if (this.online && doc.storage_path) {
-        const bucket = this.config.bucket || "carrier-documents";
-        const { data, error } = await this.supabase.storage.from(bucket).createSignedUrl(doc.storage_path, 60 * 15);
-        if (error) throw error;
-        return data.signedUrl;
+        try {
+          const bucket = this.config.bucket || "carrier-documents";
+          const { data, error } = await this.supabase.storage.from(bucket).createSignedUrl(doc.storage_path, 60 * 15);
+          if (error) throw error;
+          return data.signedUrl;
+        } catch (err) {
+          console.warn("Supabase signed URL failed. Checking local document copy.", err);
+          this.online = false;
+        }
       }
       if (doc.data_url) return doc.data_url;
       return "";

@@ -1666,15 +1666,24 @@
         role,
         login_at: new Date().toISOString()
       };
+      // Save the session first, then open the portal immediately.
+      // Do NOT wait for Supabase/local logging before routing; if Supabase is slow
+      // or the login_logs table policy is not ready, the dashboard should still open.
       setUser(user);
-      await store.logLogin(user);
       $("#login-screen").classList.add("hidden");
       $("#app-shell").classList.remove("hidden");
       state.activePolicy = null;
       state.quoteLine = null;
       state.quoteResult = null;
+      state.route = "dashboard";
       updateChrome();
       await navigate("dashboard");
+
+      // Background login audit only. This should never block Enter Portal.
+      store.logLogin(user).catch((err) => {
+        console.warn("Login audit was not saved, but portal access continued.", err);
+        toast("Portal opened. Login audit was not saved. Please check Supabase login table/policy if needed.", "info");
+      });
     });
 
     document.body.addEventListener("click", async (e) => {
