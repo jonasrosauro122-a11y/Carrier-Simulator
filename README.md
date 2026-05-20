@@ -32,3 +32,14 @@ README.md
 ## Important
 
 Run `docs/supabase-setup.sql` in Supabase and update `js/config.js`.
+
+
+## Theme / Background Update
+
+This version includes:
+
+- Uploaded LAVA red-gradient background image
+- Highlighted Dark Mode / Light Mode toggle
+- Saved theme preference in browser localStorage
+- Carrier portal UI remains fully clickable
+- Supabase-ready activity dashboard remains included
