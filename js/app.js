@@ -90,6 +90,49 @@
     return data;
   }
 
+  function fieldLabel(field) {
+    const label = field.closest("label");
+    if (!label) return field.name || field.id || "Required field";
+    const clone = label.cloneNode(true);
+    clone.querySelectorAll("input,select,textarea,small,button").forEach((el) => el.remove());
+    return clone.textContent.replace(/\s+/g, " ").trim() || field.name || field.id || "Required field";
+  }
+
+  function validateCarrierForm(form) {
+    const invalid = [];
+    $$(".field-error", form).forEach((node) => node.remove());
+    $$("input,select,textarea", form).forEach((field) => field.classList.remove("input-error"));
+
+    const requiredFields = $$("input[required], select[required], textarea[required]", form)
+      .filter((field) => !field.disabled && field.offsetParent !== null);
+
+    requiredFields.forEach((field) => {
+      const value = String(field.value || "").trim();
+      const isEmail = field.type === "email";
+      const validEmail = !isEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      if (!value || !validEmail) {
+        invalid.push({ field, label: fieldLabel(field), reason: !value ? "is required" : "must be a valid email" });
+        field.classList.add("input-error");
+        const label = field.closest("label");
+        if (label && !label.querySelector(".field-error")) {
+          const msg = document.createElement("small");
+          msg.className = "field-error";
+          msg.textContent = !value ? "Required before rating." : "Enter a valid email address.";
+          label.appendChild(msg);
+        }
+      }
+    });
+
+    if (invalid.length) {
+      const first = invalid[0].field;
+      first.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => first.focus({ preventScroll: true }), 250);
+      toast(`Complete required quote fields first: ${invalid.slice(0, 4).map((item) => item.label).join(", ")}${invalid.length > 4 ? "…" : ""}`, "error");
+      return false;
+    }
+    return true;
+  }
+
   function csv(rows) {
     if (!rows.length) return "";
     const cols = Array.from(rows.reduce((set, row) => {
@@ -360,7 +403,7 @@
         <button class="btn ghost" data-action="change-quote-line">Change Line</button>
         <button class="btn subtle" data-action="reset-quote">Clear Quote</button>
       `)}
-      <form id="quote-form" class="card carrier-form">
+      <form id="quote-form" class="card carrier-form" novalidate>
         <input type="hidden" name="policy_type" value="${esc(type)}" />
         <div class="quote-context-banner">
           <div>
@@ -371,7 +414,7 @@
         </div>
         ${type === "Auto" ? autoQuoteQuestions() : homeQuoteQuestions()}
         <div class="quote-action-bar">
-          <button class="btn primary" type="submit">Rate Quote</button>
+          <button class="btn primary" type="button" id="rate-quote-btn" data-action="rate-quote">Rate Quote</button>
           <button class="btn success hidden" type="button" id="bind-quote-btn" data-action="bind-quote">Bind / Create Policy</button>
           <button class="btn ghost" type="button" data-action="change-quote-line">Back to Line Selection</button>
         </div>
@@ -1374,22 +1417,10 @@
     await render();
   }
 
-  async function handleQuoteSubmit(form) {
-    const data = formData(form);
-    const quote = rateQuote(data);
-    state.quoteResult = quote;
-    await store.save("quotes", {
-      quote_number: quote.quote_number,
-      quote_type: quote.policy_type,
-      named_insured: data.named_insured,
-      status: quote.status,
-      premium: quote.premium,
-      data: quote,
-      created_by: state.user?.name || "",
-      created_at: new Date().toISOString()
-    });
-    await store.audit("Quote rated", { quote_number: quote.quote_number, policy_type: quote.policy_type, status: quote.status, premium: quote.premium }, state.user || {});
-    $("#quote-output").innerHTML = `
+  function renderQuoteResult(quote, data) {
+    const output = $("#quote-output");
+    if (!output) return;
+    output.innerHTML = `
       <section class="card">
         <div class="view-head">
           <div><p class="eyebrow">Quote Result</p><h1>${esc(quote.quote_number)}</h1><p class="muted">${esc(quote.policy_type)} quote for ${esc(data.named_insured)}</p></div>
@@ -1403,8 +1434,42 @@
         </div>
         ${quote.flags.length ? `<div class="warning-box"><strong>Underwriting flags:</strong><ul>${quote.flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<div class="success-box">No major underwriting flags based on training rules.</div>`}
       </section>`;
-    $("#bind-quote-btn").classList.toggle("hidden", quote.status === "Declined");
+    const bindBtn = $("#bind-quote-btn");
+    if (bindBtn) bindBtn.classList.toggle("hidden", quote.status === "Declined");
+  }
+
+  async function persistRatedQuote(quote, data) {
+    try {
+      await store.save("quotes", {
+        quote_number: quote.quote_number,
+        quote_type: quote.policy_type,
+        named_insured: data.named_insured,
+        status: quote.status,
+        premium: quote.premium,
+        data: quote,
+        created_by: state.user?.name || "",
+        created_at: new Date().toISOString()
+      });
+      await store.audit("Quote rated", { quote_number: quote.quote_number, policy_type: quote.policy_type, status: quote.status, premium: quote.premium }, state.user || {});
+    } catch (err) {
+      console.warn("Quote was rated on screen, but the save/audit step failed.", err);
+      toast("Quote rated on screen, but saving failed. Check Supabase tables/RLS or use Local Mode.", "error");
+    }
+  }
+
+  async function handleQuoteSubmit(form) {
+    if (!form) return toast("Quote form was not found. Please refresh the portal.", "error");
+    if (!validateCarrierForm(form)) return;
+
+    const data = formData(form);
+    const quote = rateQuote(data);
+    state.quoteResult = quote;
+
+    renderQuoteResult(quote, data);
     toast("Quote rated successfully.", "success");
+
+    // Save in the background so a Supabase delay or policy issue will not make the Rate button look broken.
+    persistRatedQuote(quote, data);
   }
 
   async function bindQuote() {
@@ -1702,6 +1767,7 @@
       if (action === "change-quote-line") { state.quoteLine = null; state.quoteResult = null; await renderQuote(); return; }
       if (action === "bind-quote") return bindQuote();
       if (action === "reset-quote") { state.quoteLine = null; state.quoteResult = null; await renderQuote(); return; }
+      if (action === "rate-quote") return handleQuoteSubmit($("#quote-form"));
       if (action === "download-id-card") return downloadIdCard();
       if (action === "download-receipt") return downloadReceipt();
       if (action === "download-endorsement-packet") return downloadEndorsementPacket();
