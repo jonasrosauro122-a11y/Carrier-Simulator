@@ -1231,3 +1231,159 @@ input:focus,select:focus,textarea:focus{
     transition-duration:.01ms !important;
   }
 }
+
+
+/* =========================================================
+   FIX: Visible dropdown menus + true dark native controls
+   Added for dark/light mode select readability and no page overflow.
+   ========================================================= */
+html,
+body{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+}
+
+html[data-theme="dark"],
+body.theme-dark{
+  color-scheme:dark;
+}
+
+html[data-theme="light"],
+body.theme-light{
+  color-scheme:light;
+}
+
+select{
+  appearance:auto;
+  -webkit-appearance:menulist;
+  cursor:pointer;
+}
+
+select option,
+select optgroup{
+  font-weight:700;
+  padding:10px 12px;
+}
+
+body.theme-light select,
+body.theme-light input,
+body.theme-light textarea{
+  background:#ffffff !important;
+  color:#102033 !important;
+  border-color:rgba(15,23,42,.20) !important;
+}
+
+body.theme-light select option,
+body.theme-light select optgroup{
+  background:#ffffff !important;
+  color:#102033 !important;
+}
+
+body.theme-dark select,
+body.theme-dark input,
+body.theme-dark textarea{
+  background:#171d2a !important;
+  color:#f8fafc !important;
+  border-color:rgba(255,255,255,.22) !important;
+}
+
+body.theme-dark select option,
+body.theme-dark select optgroup{
+  background:#111827 !important;
+  color:#f8fafc !important;
+}
+
+body.theme-dark select option:checked,
+body.theme-dark select option:hover{
+  background:#ef233c !important;
+  color:#ffffff !important;
+}
+
+body.theme-light select option:checked,
+body.theme-light select option:hover{
+  background:#fee2e2 !important;
+  color:#7f1018 !important;
+}
+
+body.theme-dark input::placeholder,
+body.theme-dark textarea::placeholder{
+  color:#b8c3d6 !important;
+  opacity:1;
+}
+
+body.theme-light input::placeholder,
+body.theme-light textarea::placeholder{
+  color:#6b7280 !important;
+  opacity:1;
+}
+
+body.theme-dark input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:invert(1) brightness(1.4);
+  opacity:.9;
+}
+
+body.theme-light input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:none;
+  opacity:.75;
+}
+
+body.theme-dark .form-section,
+body.theme-dark .card,
+body.theme-dark .table-wrap,
+body.theme-dark .result-card{
+  background:linear-gradient(180deg, rgba(9,14,24,.92), rgba(10,14,24,.78)) !important;
+}
+
+body.theme-light .form-section,
+body.theme-light .card,
+body.theme-light .table-wrap,
+body.theme-light .result-card{
+  background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.70)) !important;
+}
+
+body.theme-dark .page-head h1,
+body.theme-dark .page-head p,
+body.theme-dark .form-section h3,
+body.theme-dark label{
+  color:#ffffff !important;
+  text-shadow:0 2px 8px rgba(0,0,0,.35);
+}
+
+body.theme-light .page-head h1,
+body.theme-light .page-head p,
+body.theme-light .form-section h3,
+body.theme-light label{
+  text-shadow:none;
+}
+
+.topnav{
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+
+.topnav::-webkit-scrollbar{
+  height:6px;
+}
+
+.topnav::-webkit-scrollbar-thumb{
+  background:rgba(239,35,60,.45);
+  border-radius:999px;
+}
+
+.topbar,
+.view,
+.login-page{
+  max-width:100%;
+}
+
+@media (max-width:1400px){
+  .topbar{
+    grid-template-columns:1fr;
+  }
+  .topbar-left,
+  .topbar-right{
+    justify-content:space-between;
+  }
+}
