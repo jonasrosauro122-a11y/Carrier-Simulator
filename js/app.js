@@ -1264,6 +1264,10 @@
 
   function applyTheme(theme){
     const mode = theme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = mode;
+    document.documentElement.style.colorScheme = mode;
+    document.body.dataset.theme = mode;
+    document.body.style.colorScheme = mode;
     document.body.classList.toggle("theme-dark", mode === "dark");
     document.body.classList.toggle("theme-light", mode === "light");
     localStorage.setItem("lava_theme_mode", mode);
@@ -1274,6 +1278,7 @@
       if(icon) icon.textContent = mode === "dark" ? "🌙" : "☀️";
       if(text) text.textContent = mode === "dark" ? "Dark Mode" : "Light Mode";
       btn.classList.toggle("active", mode === "dark");
+      btn.setAttribute("aria-pressed", String(mode === "dark"));
     }
   }
 
