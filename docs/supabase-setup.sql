@@ -1,259 +1,225 @@
--- LAVA CarrierOps Portal Simulator - Supabase Setup
--- Run this entire file in Supabase SQL Editor.
--- This is for a training simulator. Do not store real insured/customer data.
+-- LAVA CarrierOps Training Portal - Supabase Setup
+-- Run this in Supabase SQL Editor.
+-- This setup is intended for TRAINING / SIMULATOR use only.
+-- It allows anonymous frontend access because the static Netlify site has no backend.
+-- Do not use this policy design for real customer data.
 
 create extension if not exists pgcrypto;
-
-create table if not exists public.carrier_va_users (
-  id uuid primary key default gen_random_uuid(),
-  full_name text not null,
-  email text unique not null,
-  role text not null default 'VA',
-  last_login_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists public.carrier_login_logs (
-  id uuid primary key default gen_random_uuid(),
-  name text,
-  full_name text,
-  email text,
-  role text,
-  created_at timestamptz not null default now()
-);
 
 create table if not exists public.carrier_policies (
   id uuid primary key default gen_random_uuid(),
   policy_number text unique not null,
-  quote_number text,
+  policy_type text not null,
   named_insured text not null,
   email text,
   phone text,
-  line_of_business text not null,
-  policy_status text not null default 'Active',
+  address text,
+  status text default 'Active',
+  carrier text default 'CarrierOps Mutual',
+  agency text,
   effective_date date,
   expiration_date date,
-  mailing_address text,
-  risk_address text,
-  garaging_address text,
   premium numeric default 0,
-  policy_data jsonb not null default '{}'::jsonb,
-  created_by_email text,
-  created_by_name text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  balance numeric default 0,
+  risk_score numeric default 0,
+  data jsonb default '{}'::jsonb,
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.carrier_quotes (
   id uuid primary key default gen_random_uuid(),
-  quote_number text unique not null,
-  line_of_business text not null,
+  quote_number text unique,
+  quote_type text,
   named_insured text,
-  email text,
-  phone text,
-  status text not null default 'Draft',
+  status text,
   premium numeric default 0,
-  monthly numeric default 0,
-  risk_score numeric default 0,
-  qa_score numeric default 0,
-  quote_data jsonb not null default '{}'::jsonb,
-  created_by_email text,
-  created_by_name text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists public.carrier_payments (
-  id uuid primary key default gen_random_uuid(),
-  policy_number text not null,
-  named_insured text,
-  amount numeric not null default 0,
-  method text,
-  payment_date date,
-  reference_number text,
-  received_from text,
-  apply_to text,
-  notes text,
-  status text not null default 'Posted',
-  created_by_email text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  data jsonb default '{}'::jsonb,
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.carrier_endorsements (
   id uuid primary key default gen_random_uuid(),
-  policy_number text not null,
-  named_insured text,
-  endorsement_type text not null,
+  policy_number text,
+  endorsement_type text,
   effective_date date,
+  requested_by text,
+  current_info text,
+  new_info text,
   premium_impact text,
-  description text,
-  status text not null default 'Submitted',
-  created_by_email text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  premium_delta numeric default 0,
+  status text default 'Pending Review',
+  remark text,
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.carrier_payments (
+  id uuid primary key default gen_random_uuid(),
+  policy_number text,
+  amount numeric default 0,
+  payment_method text,
+  payment_date date,
+  payer_name text,
+  notes text,
+  confirmation_number text unique,
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.carrier_cancellations (
   id uuid primary key default gen_random_uuid(),
-  policy_number text not null,
-  named_insured text,
-  reason text not null,
+  policy_number text,
+  cancellation_type text,
   effective_date date,
   requested_by text,
-  signed_request text,
-  replacement_known text,
+  proof_received text,
   refund_method text,
-  notes text,
-  status text not null default 'Pending Cancellation',
-  created_by_email text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  status text default 'Pending Review',
+  reason text,
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.carrier_documents (
   id uuid primary key default gen_random_uuid(),
   policy_number text,
-  module text,
-  file_name text not null,
-  file_path text not null,
-  file_type text,
-  file_size bigint default 0,
-  uploaded_by_email text,
-  local_note text,
-  created_at timestamptz not null default now()
+  document_type text,
+  file_name text,
+  mime_type text,
+  size_bytes bigint default 0,
+  storage_path text,
+  data_url text,
+  uploaded_by text,
+  related_record_id text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.carrier_remarketing (
   id uuid primary key default gen_random_uuid(),
-  policy_number text not null,
-  named_insured text,
-  line_of_business text,
-  target_date date,
+  policy_number text,
   reason text,
-  current_premium numeric default 0,
-  markets text,
+  target_effective date,
+  target_premium numeric default 0,
   notes text,
-  status text not null default 'Open',
-  created_by_email text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  markets jsonb default '[]'::jsonb,
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.carrier_audit_logs (
   id uuid primary key default gen_random_uuid(),
   action text not null,
-  entity text,
-  details jsonb not null default '{}'::jsonb,
+  policy_number text,
+  details jsonb default '{}'::jsonb,
+  performed_by text,
+  user_email text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.carrier_login_logs (
+  id uuid primary key default gen_random_uuid(),
   user_name text,
   user_email text,
-  user_role text,
-  created_at timestamptz not null default now()
+  role text,
+  created_at timestamptz default now()
 );
 
-create table if not exists public.carrier_qa_reviews (
-  id uuid primary key default gen_random_uuid(),
-  reference_number text not null,
-  va_name text,
-  qa_score numeric,
-  comments text,
-  trainer_name text,
-  trainer_email text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
--- Helpful indexes for portal search
+-- Useful indexes
 create index if not exists idx_carrier_policies_policy_number on public.carrier_policies(policy_number);
-create index if not exists idx_carrier_policies_named_insured on public.carrier_policies using gin (to_tsvector('simple', coalesce(named_insured,'')));
-create index if not exists idx_carrier_quotes_quote_number on public.carrier_quotes(quote_number);
+create index if not exists idx_carrier_policies_named_insured on public.carrier_policies(named_insured);
 create index if not exists idx_carrier_documents_policy_number on public.carrier_documents(policy_number);
+create index if not exists idx_carrier_audit_policy_number on public.carrier_audit_logs(policy_number);
 
 -- Enable RLS
-alter table public.carrier_va_users enable row level security;
-alter table public.carrier_login_logs enable row level security;
 alter table public.carrier_policies enable row level security;
 alter table public.carrier_quotes enable row level security;
-alter table public.carrier_payments enable row level security;
 alter table public.carrier_endorsements enable row level security;
+alter table public.carrier_payments enable row level security;
 alter table public.carrier_cancellations enable row level security;
 alter table public.carrier_documents enable row level security;
 alter table public.carrier_remarketing enable row level security;
 alter table public.carrier_audit_logs enable row level security;
-alter table public.carrier_qa_reviews enable row level security;
+alter table public.carrier_login_logs enable row level security;
 
--- Training-mode policies: allow anon/authenticated read/write.
--- This keeps the static Netlify app simple for classroom training.
--- Do NOT use this policy design for a real production carrier system with real data.
+-- Training policies: allow anon CRUD for simulator data.
+-- Remove these and use Supabase Auth for production.
+drop policy if exists "training read policies" on public.carrier_policies;
+drop policy if exists "training write policies" on public.carrier_policies;
+create policy "training read policies" on public.carrier_policies for select using (true);
+create policy "training write policies" on public.carrier_policies for all using (true) with check (true);
 
-drop policy if exists "carrier_va_users_training_all" on public.carrier_va_users;
-create policy "carrier_va_users_training_all" on public.carrier_va_users
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read quotes" on public.carrier_quotes;
+drop policy if exists "training write quotes" on public.carrier_quotes;
+create policy "training read quotes" on public.carrier_quotes for select using (true);
+create policy "training write quotes" on public.carrier_quotes for all using (true) with check (true);
 
-drop policy if exists "carrier_login_logs_training_all" on public.carrier_login_logs;
-create policy "carrier_login_logs_training_all" on public.carrier_login_logs
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read endorsements" on public.carrier_endorsements;
+drop policy if exists "training write endorsements" on public.carrier_endorsements;
+create policy "training read endorsements" on public.carrier_endorsements for select using (true);
+create policy "training write endorsements" on public.carrier_endorsements for all using (true) with check (true);
 
-drop policy if exists "carrier_policies_training_all" on public.carrier_policies;
-create policy "carrier_policies_training_all" on public.carrier_policies
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read payments" on public.carrier_payments;
+drop policy if exists "training write payments" on public.carrier_payments;
+create policy "training read payments" on public.carrier_payments for select using (true);
+create policy "training write payments" on public.carrier_payments for all using (true) with check (true);
 
-drop policy if exists "carrier_quotes_training_all" on public.carrier_quotes;
-create policy "carrier_quotes_training_all" on public.carrier_quotes
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read cancellations" on public.carrier_cancellations;
+drop policy if exists "training write cancellations" on public.carrier_cancellations;
+create policy "training read cancellations" on public.carrier_cancellations for select using (true);
+create policy "training write cancellations" on public.carrier_cancellations for all using (true) with check (true);
 
-drop policy if exists "carrier_payments_training_all" on public.carrier_payments;
-create policy "carrier_payments_training_all" on public.carrier_payments
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read documents" on public.carrier_documents;
+drop policy if exists "training write documents" on public.carrier_documents;
+create policy "training read documents" on public.carrier_documents for select using (true);
+create policy "training write documents" on public.carrier_documents for all using (true) with check (true);
 
-drop policy if exists "carrier_endorsements_training_all" on public.carrier_endorsements;
-create policy "carrier_endorsements_training_all" on public.carrier_endorsements
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read remarketing" on public.carrier_remarketing;
+drop policy if exists "training write remarketing" on public.carrier_remarketing;
+create policy "training read remarketing" on public.carrier_remarketing for select using (true);
+create policy "training write remarketing" on public.carrier_remarketing for all using (true) with check (true);
 
-drop policy if exists "carrier_cancellations_training_all" on public.carrier_cancellations;
-create policy "carrier_cancellations_training_all" on public.carrier_cancellations
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read audit" on public.carrier_audit_logs;
+drop policy if exists "training write audit" on public.carrier_audit_logs;
+create policy "training read audit" on public.carrier_audit_logs for select using (true);
+create policy "training write audit" on public.carrier_audit_logs for all using (true) with check (true);
 
-drop policy if exists "carrier_documents_training_all" on public.carrier_documents;
-create policy "carrier_documents_training_all" on public.carrier_documents
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training read logins" on public.carrier_login_logs;
+drop policy if exists "training write logins" on public.carrier_login_logs;
+create policy "training read logins" on public.carrier_login_logs for select using (true);
+create policy "training write logins" on public.carrier_login_logs for all using (true) with check (true);
 
-drop policy if exists "carrier_remarketing_training_all" on public.carrier_remarketing;
-create policy "carrier_remarketing_training_all" on public.carrier_remarketing
-for all to anon, authenticated using (true) with check (true);
+-- Storage bucket for endorsement/payment/cancellation documents.
+insert into storage.buckets (id, name, public)
+values ('carrier-documents', 'carrier-documents', false)
+on conflict (id) do nothing;
 
-drop policy if exists "carrier_audit_logs_training_all" on public.carrier_audit_logs;
-create policy "carrier_audit_logs_training_all" on public.carrier_audit_logs
-for all to anon, authenticated using (true) with check (true);
+drop policy if exists "training storage read" on storage.objects;
+drop policy if exists "training storage insert" on storage.objects;
+drop policy if exists "training storage update" on storage.objects;
+drop policy if exists "training storage delete" on storage.objects;
 
-drop policy if exists "carrier_qa_reviews_training_all" on public.carrier_qa_reviews;
-create policy "carrier_qa_reviews_training_all" on public.carrier_qa_reviews
-for all to anon, authenticated using (true) with check (true);
-
--- Storage bucket for endorsement and carrier workflow documents.
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('carrier-documents', 'carrier-documents', false, 10485760)
-on conflict (id) do update
-set public = false, file_size_limit = 10485760;
-
-drop policy if exists "carrier_docs_select_training" on storage.objects;
-create policy "carrier_docs_select_training" on storage.objects
-for select to anon, authenticated
+create policy "training storage read"
+on storage.objects for select
 using (bucket_id = 'carrier-documents');
 
-drop policy if exists "carrier_docs_insert_training" on storage.objects;
-create policy "carrier_docs_insert_training" on storage.objects
-for insert to anon, authenticated
+create policy "training storage insert"
+on storage.objects for insert
 with check (bucket_id = 'carrier-documents');
 
-drop policy if exists "carrier_docs_update_training" on storage.objects;
-create policy "carrier_docs_update_training" on storage.objects
-for update to anon, authenticated
+create policy "training storage update"
+on storage.objects for update
 using (bucket_id = 'carrier-documents')
 with check (bucket_id = 'carrier-documents');
 
-drop policy if exists "carrier_docs_delete_training" on storage.objects;
-create policy "carrier_docs_delete_training" on storage.objects
-for delete to anon, authenticated
+create policy "training storage delete"
+on storage.objects for delete
 using (bucket_id = 'carrier-documents');
