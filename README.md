@@ -43,3 +43,50 @@ This version includes:
 - Saved theme preference in browser localStorage
 - Carrier portal UI remains fully clickable
 - Supabase-ready activity dashboard remains included
+
+
+## Expanded Realistic Carrier Questions
+
+This version expands the Auto and Home quote workflows to better simulate a carrier portal.
+
+### Auto Quote now includes:
+- Transaction and agency setup
+- Named insured/contact
+- Mailing and garaging
+- Prior insurance and current coverage
+- Vehicle identification and use
+- Additional vehicles
+- Driver license and experience
+- Household drivers/exclusions
+- Incidents, violations, and losses
+- Coverage selection
+- Discounts, billing, and documents
+- Carrier underwriting knockout questions
+
+### Home Quote now includes:
+- Transaction and agency setup
+- Named insured/contact
+- Property location and occupancy
+- Property valuation and construction
+- Roof, utilities, and home systems
+- Protection, fire, and safety
+- Prior insurance and loss history
+- Coverage selection
+- Optional endorsements
+- Mortgagee, additional interests, and billing
+- Risk hazards and liability exposure
+- Carrier underwriting knockout questions
+
+
+## Formal Organized Dashboard
+
+This version includes:
+- Formal Carrier Operations Dashboard header
+- Executive Overview section
+- VA Performance Monitor with login/quote timing
+- Workflow Center
+- Quote status summary
+- Quick action buttons
+- Recent Quote Sessions
+- Recent Documentation Trail
+- `images/red-gradient-bg.jpg` applied as the website background

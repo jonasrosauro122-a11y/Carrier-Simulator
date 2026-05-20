@@ -3,29 +3,75 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="LAVA CarrierOps training portal for insurance carrier workflow simulation, quote timing, VA activity monitoring, and trainer QA." />
+  <meta name="theme-color" content="#7f1018" />
   <title>LAVA CarrierOps | Training Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body>
+<body class="theme-light lava-bg">
+  <a class="skip-link" href="#view">Skip to portal content</a>
+
+  <div class="bg-effects" aria-hidden="true">
+    <span class="orb orb-one"></span>
+    <span class="orb orb-two"></span>
+    <span class="orb orb-three"></span>
+    <span class="grid-glow"></span>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <section id="login-screen" class="login-page">
-    <div class="login-hero">
-      <div class="brand-mark">LC</div>
+    <div class="login-hero reveal-up">
+      <div class="hero-topline">
+        <div class="brand-mark">LC</div>
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          Training Portal Online
+        </div>
+      </div>
+
       <p class="eyebrow">CarrierOps Training Portal</p>
       <h1>Insurance Carrier Workflow Simulator</h1>
       <p class="hero-copy">Practice quoting, policy search, Auto ID cards, payments, endorsements, cancellations, remarketing, documentation, and trainer QA in one carrier-style portal.</p>
-      <div class="hero-grid">
-        <span>✓ Supabase-ready</span>
-        <span>✓ VA activity tracking</span>
-        <span>✓ Quote duration monitoring</span>
-        <span>✓ Netlify static deploy</span>
+
+      <div class="hero-actions">
+        <a class="btn primary hero-cta" href="#login-form">Start Training</a>
+        <span class="secure-note">Dummy data only • VA activity documentation enabled</span>
+      </div>
+
+      <div class="hero-grid professional-grid" aria-label="Portal highlights">
+        <span><strong>Supabase-ready</strong><small>Login, audit, and quote logs</small></span>
+        <span><strong>VA tracking</strong><small>Name, role, and session activity</small></span>
+        <span><strong>Quote timing</strong><small>Start-to-rate duration monitor</small></span>
+        <span><strong>Netlify-ready</strong><small>Static deploy friendly structure</small></span>
+      </div>
+
+      <div class="workflow-strip" aria-label="Training workflow sequence">
+        <span>Login</span>
+        <i></i>
+        <span>Quote</span>
+        <i></i>
+        <span>Document</span>
+        <i></i>
+        <span>Trainer QA</span>
       </div>
     </div>
 
-    <form id="login-form" class="login-panel">
-      <p class="eyebrow">VA Access</p>
-      <h2>Sign in for training</h2>
+    <form id="login-form" class="login-panel reveal-up delay-1">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">VA Access</p>
+          <h2>Sign in for training</h2>
+        </div>
+        <span class="panel-icon">▣</span>
+      </div>
+
+      <div class="login-note">
+        <strong>Training reminder:</strong> use sample customers only. Do not enter real insured personal information.
+      </div>
 
       <label>
         VA Full Name
@@ -50,9 +96,15 @@
         <input id="trainer-code" placeholder="Enter trainer code" />
       </label>
 
-      <button class="btn primary full" type="submit">Enter Portal</button>
-      <p class="help-text">Trainer code: <strong>LAVA2026</strong>. Use dummy training data only.</p>
-      <p id="login-status" class="status-line"></p>
+      <button class="btn primary full login-submit" type="submit">
+        <span>Enter Portal</span>
+        <strong>→</strong>
+      </button>
+
+      <div class="access-footer">
+        <p class="help-text">Trainer code: <strong>LAVA2026</strong>. Use dummy training data only.</p>
+        <p id="login-status" class="status-line"></p>
+      </div>
     </form>
   </section>
 
