@@ -92,6 +92,8 @@
   }
 
   async function init(){
+    initTheme();
+
     $("#login-role").addEventListener("change", () => {
       $("#trainer-code-wrap").classList.toggle("hidden", $("#login-role").value !== "Trainer");
     });
@@ -1110,7 +1112,36 @@
     setTimeout(()=>URL.revokeObjectURL(url), 1000);
   }
 
-  window.CarrierApp = { navigate, store, state };
+
+  function applyTheme(theme){
+    const mode = theme === "dark" ? "dark" : "light";
+    document.body.classList.toggle("theme-dark", mode === "dark");
+    document.body.classList.toggle("theme-light", mode === "light");
+    localStorage.setItem("lava_theme_mode", mode);
+    const btn = $("#theme-toggle");
+    if(btn){
+      const icon = $(".theme-icon", btn);
+      const text = $(".theme-text", btn);
+      if(icon) icon.textContent = mode === "dark" ? "🌙" : "☀️";
+      if(text) text.textContent = mode === "dark" ? "Dark Mode" : "Light Mode";
+      btn.classList.toggle("active", mode === "dark");
+    }
+  }
+
+  function initTheme(){
+    const saved = localStorage.getItem("lava_theme_mode") || "light";
+    applyTheme(saved);
+    const btn = $("#theme-toggle");
+    if(btn){
+      btn.addEventListener("click", () => {
+        const next = document.body.classList.contains("theme-dark") ? "light" : "dark";
+        applyTheme(next);
+        toast(`${next === "dark" ? "Dark" : "Light"} mode activated.`);
+      });
+    }
+  }
+
+  window.CarrierApp = { navigate, store, state, applyTheme };
 
   document.addEventListener("DOMContentLoaded", init);
 })();
