@@ -1,17 +1,15 @@
 /*
-  LAVA CarrierOps Portal - Supabase Configuration
-
-  STEP 1: Run docs/supabase-setup.sql in Supabase SQL Editor.
-  STEP 2: Create/confirm Storage bucket: carrier-documents.
-  STEP 3: Paste your Supabase Project URL and publishable/anon public key below.
-
-  IMPORTANT:
-  - Use only the Supabase publishable key or legacy anon public key.
-  - NEVER put a service_role key or sb_secret key in this file.
+  Supabase Configuration
+  ----------------------
+  1. Create your Supabase project.
+  2. Run docs/supabase-setup.sql inside Supabase SQL Editor.
+  3. Create a public storage bucket named: carrier-documents
+  4. Paste your project URL and anon public key below.
+  5. Commit this file to GitHub only if this is a training/demo project.
 */
 window.LAVA_SUPABASE = {
-  url: "",       // Example: "https://your-project-id.supabase.co"
-  anonKey: "",   // Example: "sb_publishable_..." or legacy anon public key
+  url: "",       // Example: "https://abcxyz.supabase.co"
+  anonKey: "",   // Example: "eyJhbGciOi..."
   bucket: "carrier-documents"
 };
 
