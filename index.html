@@ -1,34 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LAVA CarrierOps Portal Simulator</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LAVA CarrierOps | Training Portal</title>
+  <meta name="description" content="Standalone carrier operations training portal for VA practice: quoting, policy search, ID cards, payments, endorsements, cancellations, remarketing, and trainer QA." />
+  <link rel="icon" href="images/logo.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
   <section id="login-screen" class="login-screen">
     <div class="login-hero">
-      <div class="logo-row">
-        <div class="logo-mark">L</div>
+      <div class="brand-lockup">
+        <img src="images/logo.svg" alt="LAVA CarrierOps logo" class="login-logo" />
         <div>
-          <div class="logo-title">LAVA CarrierOps</div>
-          <div class="logo-sub">Carrier Portal Training Simulator</div>
+          <p class="eyebrow">CarrierOps</p>
+          <h1>Training Portal</h1>
+          <p class="muted">Practice carrier-style service workflows in a safe training simulator.</p>
         </div>
       </div>
-      <div class="hero-copy">
-        <p class="eyebrow" style="color:#d9f0ff">Production-style training</p>
-        <h1>Practice carrier workflows with real portal behavior.</h1>
-        <p>Search policies, quote Auto and Home, process payments, endorsements, cancellations, remarketing, documents, and QA reviews in one training environment.</p>
-      </div>
       <div class="hero-grid">
-        <div class="hero-card"><strong>100%</strong><span>Standalone for Netlify</span></div>
-        <div class="hero-card"><strong>Supabase</strong><span>Database + document storage ready</span></div>
-        <div class="hero-card"><strong>VA</strong><span>Login and training audit logs</span></div>
+        <div class="hero-card">
+          <span>01</span>
+          <strong>Pull up policies</strong>
+          <p>Search by policy number or named insured and process service tasks.</p>
+        </div>
+        <div class="hero-card">
+          <span>02</span>
+          <strong>Carrier workflows</strong>
+          <p>Quote, bind, create ID cards, post payments, process endorsements and cancellations.</p>
+        </div>
+        <div class="hero-card">
+          <span>03</span>
+          <strong>Trainer QA</strong>
+          <p>Track login history, audit activity, and trainee processing quality.</p>
+        </div>
       </div>
     </div>
 
-    <form id="login-form" class="login-panel" autocomplete="on">
+    <form id="login-form" class="login-panel">
       <p class="eyebrow">VA Access</p>
       <h2>Sign in for training</h2>
       <label>
@@ -51,53 +63,67 @@
         <input id="trainer-code" placeholder="Enter trainer code" />
       </label>
       <button class="btn primary full" type="submit">Enter Portal</button>
-      <div id="login-error" class="form-error hidden"></div>
-      <p class="help-text">Training simulator only. Use dummy customer information. Trainer code: <strong>LAVA2026</strong>.</p>
+      <p class="help-text">Trainer code: <strong>LAVA2026</strong>. This is a training simulator, not a real carrier system.</p>
     </form>
   </section>
 
-  <section id="app-shell" class="app-shell hidden">
+  <div id="app-shell" class="app-shell hidden">
     <header class="topbar">
-      <div class="topbar-inner">
-        <div class="app-logo">
-          <div class="logo-mark">L</div>
+      <div class="topbar-left">
+        <a class="brand" href="#dashboard" data-route="dashboard">
+          <img src="images/logo.svg" alt="CarrierOps" />
+          <span>
+            <small>CARRIEROPS</small>
+            <strong>Training Portal</strong>
+          </span>
+        </a>
+        <nav class="topnav" aria-label="Main navigation">
+          <button data-route="dashboard" class="nav-link active">Dashboard</button>
+          <button data-route="search" class="nav-link">Policy Search</button>
+          <button data-route="quote" class="nav-link">New Quote</button>
+          <button data-route="idcards" class="nav-link">Auto ID Cards</button>
+          <button data-route="payments" class="nav-link">Payments</button>
+          <button data-route="endorsements" class="nav-link">Endorsements</button>
+          <button data-route="cancellations" class="nav-link">Cancellations</button>
+          <button data-route="remarketing" class="nav-link">Remarketing</button>
+          <button data-route="workqueue" class="nav-link">Work Queue</button>
+          <button data-route="trainer" class="nav-link trainer-only hidden">Trainer QA</button>
+        </nav>
+      </div>
+      <div class="topbar-actions">
+        <div id="connection-badge" class="connection-badge">Local Mode</div>
+        <button id="quick-demo-btn" class="btn ghost">Load Demo Policies</button>
+        <button id="theme-toggle" class="btn icon" title="Toggle theme">◐</button>
+        <div class="user-chip">
+          <span id="user-initials">VA</span>
           <div>
-            <div class="logo-title">CarrierOps Portal</div>
-            <div class="logo-sub">Training Mode • Simulated Carrier System</div>
+            <strong id="user-name">VA User</strong>
+            <small id="user-role">Virtual Assistant</small>
           </div>
         </div>
-        <div class="top-actions">
-          <div id="connection-status" class="status-pill"><span class="dot"></span><span>Checking database</span></div>
-          <div id="user-pill" class="user-pill">Not signed in</div>
-          <button class="btn ghost" id="theme-toggle" type="button">🌙 Theme</button>
-          <button class="btn danger" id="logout-btn" type="button">Logout</button>
-        </div>
+        <button id="logout-btn" class="btn subtle">Logout</button>
       </div>
-      <nav id="navbar" class="navbar">
-        <button class="nav-link" data-route="dashboard">Dashboard</button>
-        <button class="nav-link" data-route="search">Policy Search</button>
-        <button class="nav-link" data-route="quote">Start Quote</button>
-        <button class="nav-link" data-route="idcard">Auto ID Card</button>
-        <button class="nav-link" data-route="payments">Payments</button>
-        <button class="nav-link" data-route="endorsements">Endorsements</button>
-        <button class="nav-link" data-route="cancellations">Cancellations</button>
-        <button class="nav-link" data-route="remarketing">Remarketing</button>
-        <button class="nav-link" data-route="documents">Documents</button>
-        <button class="nav-link" data-route="queue">Work Queue</button>
-        <button class="nav-link" data-route="trainer">Trainer QA</button>
-      </nav>
     </header>
 
-    <main id="view" class="main"></main>
-    <footer>CarrierOps Portal Simulator • For VA training only • Do not enter real insured data.</footer>
-  </section>
+    <main class="main">
+      <section id="view"></section>
+    </main>
+  </div>
 
-  <div id="toast-wrap" class="toast-wrap" aria-live="polite"></div>
+  <template id="policy-card-template">
+    <article class="policy-card">
+      <div>
+        <p class="eyebrow policy-type"></p>
+        <h3 class="policy-number"></h3>
+        <p class="policy-insured"></p>
+      </div>
+      <span class="status-pill policy-status"></span>
+    </article>
+  </template>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="data/reference.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/supabase-store.js"></script>
-  <script src="js/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/config.js" defer></script>
+  <script src="js/db.js" defer></script>
+  <script src="js/app.js" defer></script>
 </body>
 </html>

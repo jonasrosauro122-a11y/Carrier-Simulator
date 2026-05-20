@@ -1,93 +1,101 @@
-# LAVA CarrierOps Portal Simulator
+# LAVA CarrierOps Training Portal
 
-Standalone carrier-style insurance portal simulator for VA training.
+A standalone, Netlify-ready carrier operations simulator for VA training.
 
-## Works directly in GitHub + Netlify
+## What this version includes
 
-No `npm install`.
-No build command.
-No framework build.
-Just upload the folder contents to GitHub and deploy with Netlify.
+- Top navigation carrier-style UI
+- VA login and Trainer/TL login
+- Trainer code: `LAVA2026`
+- Dashboard
+- Policy Search by policy number or named insured
+- New Quote start screen with Auto or Home selection
+- Separate realistic carrier-style Auto quote questions
+- Separate realistic carrier-style Home quote questions
+- Auto Insurance ID Card Generator
+- Payment Center with receipt download
+- Endorsement Processing with document upload/download
+- How to Process Endorsements guide
+- Policy Cancellation workflow with packet download
+- How to Cancel Policy guide
+- Quoting & Remarketing with carrier comparison
+- Work Queue
+- Trainer QA / audit logs
+- CSV and JSON exports
+- Supabase-ready storage and database setup
+- Local browser fallback when Supabase is not configured
 
-## Folder Structure
+## GitHub + Netlify deployment
+
+Upload the folder contents to your GitHub repository. The root of your repository should show:
 
 ```text
 index.html
 css/
-  styles.css
 js/
-  config.js
-  supabase-store.js
-  app.js
 data/
-  reference.js
-docs/
-  supabase-setup.sql
-  README-SUPABASE.md
 images/
+docs/
 exports/
 netlify.toml
 _redirects
 README.md
 ```
 
-## Netlify Settings
+In Netlify:
 
 ```text
 Build command: leave blank
 Publish directory: .
 ```
 
-## Supabase Setup
+No `npm install` and no build command are required.
 
-1. Open Supabase.
-2. Create a project.
-3. Go to SQL Editor.
-4. Open `docs/supabase-setup.sql` from this project.
-5. Copy everything and click Run in Supabase.
-6. Go to Project Settings > API.
-7. Copy your Project URL and publishable/anon public key.
-8. Open `js/config.js`.
-9. Paste your values:
+## Supabase setup
+
+1. Create a Supabase project.
+2. Go to Supabase SQL Editor.
+3. Open `docs/supabase-setup.sql`.
+4. Copy everything and run it.
+5. Go to Supabase Project Settings > API.
+6. Copy:
+   - Project URL
+   - anon public key
+7. Open `js/config.js`.
+8. Paste the values:
 
 ```js
 window.LAVA_SUPABASE = {
-  url: "https://your-project-id.supabase.co",
-  anonKey: "sb_publishable_xxxxxxxxxxxxxxxxx",
+  url: "https://YOURPROJECT.supabase.co",
+  anonKey: "YOUR_ANON_PUBLIC_KEY",
   bucket: "carrier-documents"
 };
 ```
 
-Do not use a service role or secret key in this static website.
+9. Commit and push the update to GitHub.
+10. Redeploy Netlify.
 
-## Main Features
+## Training demo policies
 
-- VA login
-- Trainer/TL login
-- Dashboard
-- Policy Search
-- Auto Quote
-- Home Quote
-- Rate Quote
-- Bind / Issue Policy
-- Auto ID Card Generator
-- Payment Center
-- Endorsement Processing
-- Document Uploads
-- Cancellation Workflow
-- Remarketing Workflow
-- Work Queue
-- Trainer QA Review
-- Audit Logs
-- Supabase database + storage integration
-- Local fallback when Supabase is not configured
+The portal starts empty until you create a quote/policy or click **Load Demo Policies**. When you click **Start New Quote**, select **Auto Quote** or **Home Quote** first. Each line opens a separate carrier-style intake with blank fields and realistic underwriting questions.
 
-## Trainer Code
+Demo search examples:
 
 ```text
-LAVA2026
+LVA-AUTO-1001
+Jamie Rivera
+LVA-HOME-2001
+Morgan Santos
 ```
 
-## Important
+## Important security note
 
-This is a training simulator only. Do not enter real insured/customer information.
+The included Supabase SQL allows anonymous read/write because this is a static training simulator. Do not use real customer data. For production, use Supabase Auth, server-side validation, and stricter RLS policies.
+
+## Dashboard Landing Fix
+
+After VA or Trainer login, the simulator now always opens the Dashboard first. Even if the browser previously had `#quote`, `#payments`, or another route in the URL, Enter Portal resets the route to `#dashboard` so trainees start from the correct carrier command center.
+
+
+## Rate Quote Button Fix
+The Rate Quote button is now a direct action button with friendly validation. If required quote fields are missing, the portal scrolls to the first missing field and shows a message instead of appearing unresponsive. The quote result also renders before Supabase saving, so a Supabase delay will not block the quote rating screen.
