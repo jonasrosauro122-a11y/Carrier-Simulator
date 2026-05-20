@@ -516,3 +516,16 @@ tr:last-child td{border-bottom:0}
   .quote-action-bar{position:static;justify-content:stretch;flex-wrap:wrap}
   .quote-action-bar .btn{flex:1 1 220px}
 }
+
+.input-error{
+  border-color:var(--danger)!important;
+  box-shadow:0 0 0 4px rgba(200,58,58,.12)!important;
+}
+.field-error{
+  display:block;
+  margin-top:.35rem;
+  color:var(--danger);
+  font-weight:800;
+  font-size:.78rem;
+}
+#rate-quote-btn{min-width:160px}
