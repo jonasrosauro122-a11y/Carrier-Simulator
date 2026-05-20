@@ -95,3 +95,7 @@ The included Supabase SQL allows anonymous read/write because this is a static t
 ## Dashboard Landing Fix
 
 After VA or Trainer login, the simulator now always opens the Dashboard first. Even if the browser previously had `#quote`, `#payments`, or another route in the URL, Enter Portal resets the route to `#dashboard` so trainees start from the correct carrier command center.
+
+
+## Rate Quote Button Fix
+The Rate Quote button is now a direct action button with friendly validation. If required quote fields are missing, the portal scrolls to the first missing field and shows a message instead of appearing unresponsive. The quote result also renders before Supabase saving, so a Supabase delay will not block the quote rating screen.
