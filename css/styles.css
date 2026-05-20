@@ -325,3 +325,167 @@ tr:hover td{background:#fbfdff}
   .view{padding:0}
   .card{box-shadow:none;border:0}
 }
+
+
+/* =========================================================
+   LAVA Theme Background + Dark/Light Highlight Toggle
+   ========================================================= */
+body{
+  background:
+    linear-gradient(180deg, rgba(248,251,255,.88), rgba(243,246,251,.94)),
+    url('../images/red-gradient-bg.jpg') center/cover no-repeat fixed !important;
+}
+
+body.theme-dark{
+  --bg:#070b12;
+  --panel:rgba(12,18,30,.94);
+  --panel-2:rgba(18,26,42,.92);
+  --ink:#eef6ff;
+  --muted:#aebbd0;
+  --line:rgba(148,163,184,.28);
+  --brand:#ef233c;
+  --brand-2:#ff385c;
+  --accent:#ff4d6d;
+  --shadow:0 22px 60px rgba(0,0,0,.34);
+  background:
+    linear-gradient(180deg, rgba(5,8,14,.78), rgba(5,8,14,.93)),
+    url('../images/red-gradient-bg.jpg') center/cover no-repeat fixed !important;
+}
+
+body.theme-light{
+  --bg:#f5f7fb;
+  --panel:rgba(255,255,255,.94);
+  --panel-2:#f8fafc;
+  --ink:#102033;
+  --muted:#65758b;
+  --line:#d9e2ee;
+  --brand:#0d3b66;
+  --brand-2:#145da0;
+  --accent:#ef233c;
+  --shadow:0 18px 45px rgba(10,31,68,.10);
+  background:
+    linear-gradient(180deg, rgba(248,251,255,.88), rgba(243,246,251,.94)),
+    url('../images/red-gradient-bg.jpg') center/cover no-repeat fixed !important;
+}
+
+body.theme-dark .topbar{
+  background:rgba(7,11,18,.88);
+  border-bottom:1px solid rgba(255,255,255,.12);
+}
+
+body.theme-dark .topnav{
+  background:rgba(255,255,255,.05);
+  border-color:rgba(255,255,255,.12);
+}
+
+body.theme-dark .nav-link{
+  color:#dbeafe;
+}
+
+body.theme-dark .nav-link:hover{
+  background:rgba(239,35,60,.16);
+  color:#fff;
+}
+
+body.theme-dark .nav-link.active{
+  background:linear-gradient(135deg,#ef233c,#8b000f);
+  color:#fff;
+}
+
+body.theme-dark .card,
+body.theme-dark .metric,
+body.theme-dark .form-section,
+body.theme-dark .login-panel,
+body.theme-dark .quote-chooser .option,
+body.theme-dark .result-card{
+  background:rgba(12,18,30,.92);
+  border-color:rgba(255,255,255,.12);
+  color:var(--ink);
+  box-shadow:var(--shadow);
+}
+
+body.theme-dark input,
+body.theme-dark select,
+body.theme-dark textarea{
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  border-color:rgba(255,255,255,.18);
+}
+
+body.theme-dark input::placeholder,
+body.theme-dark textarea::placeholder{
+  color:#9ca3af;
+}
+
+body.theme-dark th{
+  background:rgba(255,255,255,.07);
+  color:#dbeafe;
+}
+
+body.theme-dark td{
+  color:#edf2ff;
+  border-bottom-color:rgba(255,255,255,.09);
+}
+
+body.theme-dark tr:hover td{
+  background:rgba(239,35,60,.07);
+}
+
+body.theme-dark .topbar-left strong,
+body.theme-dark .metric .value,
+body.theme-dark .option h3,
+body.theme-dark .form-section h3{
+  color:#fff;
+}
+
+body.theme-dark label{
+  color:#edf2ff;
+}
+
+.theme-toggle{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid rgba(239,35,60,.35);
+  background:linear-gradient(135deg,#ffffff,#fff1f2);
+  color:#9f1239;
+  padding:9px 12px;
+  border-radius:999px;
+  font-weight:950;
+  box-shadow:0 8px 18px rgba(239,35,60,.12);
+  white-space:nowrap;
+}
+
+.theme-toggle:hover{
+  transform:translateY(-1px);
+  box-shadow:0 12px 28px rgba(239,35,60,.20);
+}
+
+body.theme-dark .theme-toggle{
+  background:linear-gradient(135deg,#ef233c,#57000a);
+  border-color:rgba(255,255,255,.22);
+  color:#fff;
+  box-shadow:0 0 0 4px rgba(239,35,60,.14), 0 14px 30px rgba(239,35,60,.26);
+}
+
+body.theme-light .theme-toggle{
+  outline:3px solid rgba(239,35,60,.13);
+}
+
+body.theme-dark .login-hero{
+  background:
+    linear-gradient(135deg,rgba(7,11,18,.65),rgba(7,11,18,.95)),
+    url('../images/red-gradient-bg.jpg') center/cover no-repeat;
+}
+
+body.theme-light .login-hero{
+  background:
+    linear-gradient(135deg,rgba(13,59,102,.82),rgba(9,28,56,.92)),
+    url('../images/red-gradient-bg.jpg') center/cover no-repeat;
+}
+
+body.theme-dark .brand-mini,
+body.theme-dark .brand-mark{
+  background:linear-gradient(135deg,#ef233c,#ffffff);
+  color:#140006;
+}
