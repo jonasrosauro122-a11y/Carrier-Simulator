@@ -201,18 +201,31 @@
 
   async function renderDashboard(){
     $("#view").innerHTML = pageHead(
-      "Operations Dashboard",
-      "Live training monitor for VA logins, quote starts, quote rating duration, issued policies, and documented activity.",
+      "Carrier Operations Dashboard",
+      "Formal training overview for VA activity, quote timing, policy workflow, documentation, and trainer review.",
       `<button class="btn secondary" id="refresh-dashboard">Refresh Dashboard</button>
        <button class="btn" id="export-json">Export JSON Backup</button>`
     ) + `
-      <div id="dashboard-body" class="grid"></div>
+      <section class="dashboard-hero card">
+        <div class="dashboard-hero-copy">
+          <p class="eyebrow">LAVA CarrierOps Command Center</p>
+          <h2>Real-time VA Training Activity Monitor</h2>
+          <p>This dashboard documents every login, quote start, quote rating duration, issued policy, workflow action, document upload, and trainer QA review.</p>
+        </div>
+        <div class="dashboard-hero-status">
+          <span class="pill good">Dashboard Active</span>
+          <span class="pill neutral">Training Mode</span>
+          <span class="pill warn">Use Dummy Data Only</span>
+        </div>
+      </section>
+
+      <div id="dashboard-body" class="dashboard-layout"></div>
     `;
 
     $("#refresh-dashboard").addEventListener("click", renderDashboard);
     $("#export-json").addEventListener("click", exportBackup);
 
-    const [logins, sessions, quotes, policies, payments, endorsements, cancels, docs, audits] = await Promise.all([
+    const [logins, sessions, quotes, policies, payments, endorsements, cancels, docs, audits, reviews] = await Promise.all([
       store.list("carrier_login_logs", {limit:1000}),
       store.list("carrier_quote_sessions", {limit:1000}),
       store.list("carrier_quotes", {limit:1000}),
@@ -221,25 +234,30 @@
       store.list("carrier_endorsements", {limit:1000}),
       store.list("carrier_cancellations", {limit:1000}),
       store.list("carrier_documents", {limit:1000}),
-      store.list("carrier_audit_logs", {limit:1000})
+      store.list("carrier_audit_logs", {limit:1000}),
+      store.list("carrier_trainer_reviews", {limit:1000})
     ]);
 
     const rated = sessions.filter(s => s.rated_at || s.duration_seconds);
     const avgDuration = rated.length ? Math.round(rated.reduce((a,s)=>a+Number(s.duration_seconds||0),0)/rated.length) : 0;
     const uniqueVAs = new Set(logins.map(l => (l.va_email || l.email || "").toLowerCase()).filter(Boolean)).size;
-    const openTasks = endorsements.filter(e => !["Completed","Declined"].includes(e.status)).length + cancels.filter(c => !["Completed","Declined"].includes(c.status)).length;
+    const openEndorsements = endorsements.filter(e => !["Completed","Declined"].includes(e.status)).length;
+    const openCancels = cancels.filter(c => !["Completed","Declined"].includes(c.status)).length;
+    const openTasks = openEndorsements + openCancels;
+    const referralQuotes = quotes.filter(q => /Referral/i.test(q.status || "")).length;
+    const declinedQuotes = quotes.filter(q => /Declined/i.test(q.status || "")).length;
 
     const byEmail = {};
     logins.forEach(l => {
       const key = (l.va_email || "").toLowerCase() || l.va_name;
-      byEmail[key] ||= { name:l.va_name, email:l.va_email, role:l.role, logins:0, lastLogin:null, quotesStarted:0, quotesRated:0, totalSeconds:0, lastQuote:"" };
+      byEmail[key] ||= { name:l.va_name, email:l.va_email, role:l.role, logins:0, lastLogin:null, quotesStarted:0, quotesRated:0, totalSeconds:0, policiesIssued:0, workflows:0, lastQuote:"" };
       byEmail[key].logins++;
       if(!byEmail[key].lastLogin || String(l.login_at || l.created_at) > String(byEmail[key].lastLogin)) byEmail[key].lastLogin = l.login_at || l.created_at;
     });
 
     sessions.forEach(s => {
       const key = (s.va_email || "").toLowerCase() || s.va_name;
-      byEmail[key] ||= { name:s.va_name, email:s.va_email, role:s.role, logins:0, lastLogin:null, quotesStarted:0, quotesRated:0, totalSeconds:0, lastQuote:"" };
+      byEmail[key] ||= { name:s.va_name, email:s.va_email, role:s.role, logins:0, lastLogin:null, quotesStarted:0, quotesRated:0, totalSeconds:0, policiesIssued:0, workflows:0, lastQuote:"" };
       byEmail[key].quotesStarted++;
       if(s.duration_seconds){
         byEmail[key].quotesRated++;
@@ -248,31 +266,53 @@
       byEmail[key].lastQuote = `${s.quote_type || ""} ${s.status || ""} ${s.quote_number || ""}`.trim();
     });
 
+    policies.forEach(p => {
+      const key = (p.va_email || "").toLowerCase() || p.va_name;
+      byEmail[key] ||= { name:p.va_name, email:p.va_email, role:"VA", logins:0, lastLogin:null, quotesStarted:0, quotesRated:0, totalSeconds:0, policiesIssued:0, workflows:0, lastQuote:"" };
+      byEmail[key].policiesIssued++;
+    });
+
+    [...payments, ...endorsements, ...cancels, ...docs].forEach(x => {
+      const key = (x.va_email || "").toLowerCase() || x.va_name;
+      if(!key) return;
+      byEmail[key] ||= { name:x.va_name, email:x.va_email, role:"VA", logins:0, lastLogin:null, quotesStarted:0, quotesRated:0, totalSeconds:0, policiesIssued:0, workflows:0, lastQuote:"" };
+      byEmail[key].workflows++;
+    });
+
     const monitorRows = Object.values(byEmail).sort((a,b)=>String(b.lastLogin||"").localeCompare(String(a.lastLogin||"")));
 
     $("#dashboard-body").innerHTML = `
-      <div class="grid four">
-        ${metric("Unique VAs Logged In", uniqueVAs, "Saved in carrier_login_logs")}
-        ${metric("Quotes Started", sessions.length, "Every Start Quote click is documented")}
-        ${metric("Quotes Rated", rated.length, `Average time: ${fmtDuration(avgDuration)}`)}
-        ${metric("Issued Policies", policies.length, "Policies created from Bind / Issue")}
-      </div>
-
-      <div class="grid four">
-        ${metric("Payments Recorded", payments.length, "Payment activity documented")}
-        ${metric("Endorsements", endorsements.length, "Includes uploads when attached")}
-        ${metric("Documents Uploaded", docs.length, "Saved in Storage + carrier_documents")}
-        ${metric("Open Work Items", openTasks, "Endorsement/Cancellation tasks")}
-      </div>
-
-      <div class="card pad">
-        <div class="page-head">
+      <section class="dashboard-section">
+        <div class="section-title">
           <div>
-            <h1 style="font-size:22px">VA Login & Quote Time Monitor</h1>
-            <p>Shows each VA who logged in, how many quotes they started, and how long they took to rate quotes.</p>
+            <p class="eyebrow">Executive Overview</p>
+            <h2>Training Production Summary</h2>
+          </div>
+          <span class="pill neutral">Updated ${escapeHtml(new Date().toLocaleString())}</span>
+        </div>
+        <div class="grid four">
+          ${metric("Unique VAs Logged In", uniqueVAs, "Saved in carrier_login_logs")}
+          ${metric("Quotes Started", sessions.length, "Every Start Quote click is documented")}
+          ${metric("Quotes Rated", rated.length, `Average quote time: ${fmtDuration(avgDuration)}`)}
+          ${metric("Issued Policies", policies.length, "Policies created from Bind / Issue")}
+        </div>
+        <div class="grid four">
+          ${metric("Payments Posted", payments.length, "Payment activity documented")}
+          ${metric("Open Work Items", openTasks, `${openEndorsements} endorsements / ${openCancels} cancellations`)}
+          ${metric("Documents Uploaded", docs.length, "Saved in carrier_documents")}
+          ${metric("Trainer QA Reviews", reviews.length, "Trainer scoring and comments")}
+        </div>
+      </section>
+
+      <section class="dashboard-section card pad">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">VA Performance Monitor</p>
+            <h2>Login, Quote Completion, and Timing</h2>
+            <p>Use this table to verify who logged in, when they entered the portal, how many quotes they started, and how long they took to rate quotes.</p>
           </div>
         </div>
-        ${table(["VA Name","Email","Role","Logins","Last Login","Quotes Started","Quotes Rated","Average Quote Time","Last Quote"],
+        ${table(["VA Name","Email","Role","Logins","Last Login","Quotes Started","Quotes Rated","Average Quote Time","Issued Policies","Documented Workflows","Last Quote"],
           monitorRows.map(r => [
             r.name || "-",
             r.email || "-",
@@ -282,14 +322,76 @@
             r.quotesStarted,
             r.quotesRated,
             r.quotesRated ? fmtDuration(Math.round(r.totalSeconds / r.quotesRated)) : "-",
+            r.policiesIssued || 0,
+            r.workflows || 0,
             r.lastQuote || "-"
           ])
         )}
-      </div>
+      </section>
 
-      <div class="grid two">
+      <section class="dashboard-section">
+        <div class="grid three">
+          <div class="card pad dashboard-panel">
+            <div class="section-title compact">
+              <div>
+                <p class="eyebrow">Quote Status</p>
+                <h2>Carrier Appetite Results</h2>
+              </div>
+            </div>
+            ${table(["Result","Count"],
+              [
+                ["Rated Quotes", rated.length],
+                ["Referral Quotes", referralQuotes],
+                ["Declined Quotes", declinedQuotes],
+                ["Issued Policies", policies.length]
+              ]
+            )}
+          </div>
+
+          <div class="card pad dashboard-panel">
+            <div class="section-title compact">
+              <div>
+                <p class="eyebrow">Workflow Center</p>
+                <h2>Operational Activity</h2>
+              </div>
+            </div>
+            ${table(["Workflow","Count"],
+              [
+                ["Payments", payments.length],
+                ["Endorsements", endorsements.length],
+                ["Cancellations", cancels.length],
+                ["Remarketing", (await store.list("carrier_remarketing", {limit:1000})).length],
+                ["Documents", docs.length]
+              ]
+            )}
+          </div>
+
+          <div class="card pad dashboard-panel">
+            <div class="section-title compact">
+              <div>
+                <p class="eyebrow">Quick Actions</p>
+                <h2>Carrier Tasks</h2>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <button class="btn primary full" data-dashboard-route="quote">Start New Quote</button>
+              <button class="btn secondary full" data-dashboard-route="search">Search Policy</button>
+              <button class="btn secondary full" data-dashboard-route="endorsements">Process Endorsement</button>
+              <button class="btn secondary full" data-dashboard-route="payments">Post Payment</button>
+              <button class="btn secondary full" data-dashboard-route="audit">View Audit Logs</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section grid two">
         <div class="card pad">
-          <h2>Recent Quote Sessions</h2>
+          <div class="section-title compact">
+            <div>
+              <p class="eyebrow">Recent Quote Sessions</p>
+              <h2>Quote Timing Documentation</h2>
+            </div>
+          </div>
           ${table(["VA","Type","Quote #","Started","Rated","Duration","Status"],
             sessions.slice(0,12).map(s => [
               s.va_name || "-",
@@ -302,8 +404,14 @@
             ])
           )}
         </div>
+
         <div class="card pad">
-          <h2>Recent Documentation / Audit Trail</h2>
+          <div class="section-title compact">
+            <div>
+              <p class="eyebrow">Documentation Trail</p>
+              <h2>Recent System Activity</h2>
+            </div>
+          </div>
           ${table(["Time","VA","Action","Message"],
             audits.slice(0,12).map(a => [
               fmtDate(a.created_at),
@@ -313,10 +421,14 @@
             ])
           )}
         </div>
-      </div>
+      </section>
     `;
 
     bindDashboardClicks();
+
+    $$("[data-dashboard-route]").forEach(btn => {
+      btn.addEventListener("click", () => navigate(btn.dataset.dashboardRoute));
+    });
   }
 
   function metric(label, value, sub){
@@ -589,25 +701,62 @@
 
     if(type === "auto"){
       base += Number(data.annual_miles || 0) > 15000 ? 250 : 0;
+      base += Number(data.annual_miles || 0) > 25000 ? 450 : 0;
       base += Number(data.accidents_5yrs || 0) * 350;
+      base += Number(data.not_at_fault_5yrs || 0) * 75;
       base += Number(data.violations_5yrs || 0) * 175;
+      base += Number(data.major_violations_5yrs || 0) * 650;
+      base += Number(data.comp_claims_5yrs || 0) * 125;
       base += Number(data.lapse_days || 0) > 0 ? 220 : 0;
+      base += Number(data.lapse_days || 0) > 30 ? 550 : 0;
       base += data.vehicle_use === "Business" ? 200 : 0;
-      if(data.vehicle_use === "Rideshare/Delivery" || data.business_delivery === "Yes"){ flags.push("Rideshare/delivery exposure requires referral."); score -= 18; }
+      base += data.vehicle_use === "Artisan Use" ? 350 : 0;
+      base += data.multi_policy === "Yes" ? -120 : 0;
+      base += data.multi_car === "Yes" ? -85 : 0;
+      base += data.telematics === "Yes - Enroll" ? -95 : 0;
+      base += data.paid_in_full === "Yes" ? -70 : 0;
+
+      if(data.vehicle_use === "Rideshare/Delivery" || data.business_delivery === "Yes"){ flags.push("Rideshare/delivery/livery exposure requires referral."); score -= 18; }
       if(data.sr22 === "Yes"){ flags.push("SR-22/FR-44 filing requires underwriting review."); score -= 15; }
-      if(data.salvage === "Yes"){ flags.push("Salvage/rebuilt vehicle is outside normal appetite."); score -= 20; }
+      if(data.salvage === "Yes"){ flags.push("Salvage, rebuilt, gray market, or custom vehicle is outside normal appetite."); score -= 20; }
       if(data.license_status !== "Valid"){ flags.push("Driver license is not valid."); score -= 30; }
       if(Number(data.accidents_5yrs || 0) >= 2){ flags.push("Multiple at-fault accidents."); score -= 16; }
+      if(Number(data.major_violations_5yrs || 0) >= 1){ flags.push("Major violation present: DUI, reckless, racing, or similar."); score -= 25; }
+      if(data.unacceptable_driver === "Yes"){ flags.push("Unacceptable driver present."); score -= 30; }
+      if(data.fraud_or_misrep === "Yes"){ flags.push("Prior fraud, material misrepresentation, or policy rescission."); score -= 35; }
+      if(data.any_modified_vehicle === "Yes"){ flags.push("Modified/classic/exotic/high-performance vehicle requires review."); score -= 12; }
+      if(data.documents_ready === "No"){ flags.push("Required documents are not ready."); score -= 8; }
+      if(data.unlisted_household === "Yes"){ flags.push("Unlisted household members age 14+ must be reviewed."); score -= 10; }
     }else{
       base += Number(data.coverage_a || 0) * 0.0022;
+      base += Number(data.replacement_cost_estimate || 0) * 0.0014;
       base += Math.max(0, (new Date().getFullYear() - Number(data.roof_year || new Date().getFullYear())) * 18);
       base += Number(data.claims_5yrs || 0) * 275;
+      base += Number(data.water_claims_5yrs || 0) * 325;
+      base += Number(data.liability_claims_5yrs || 0) * 400;
+      base += Number(data.weather_claims_5yrs || 0) * 175;
+      base += data.burglar_alarm === "Central Station" ? -65 : 0;
+      base += data.fire_alarm === "Central Station" ? -75 : 0;
+      base += data.sprinkler === "Full" ? -110 : 0;
+      base += data.water_backup && data.water_backup !== "No" ? 55 : 0;
+      base += data.service_line === "Yes" ? 45 : 0;
+      base += data.equipment_breakdown === "Yes" ? 35 : 0;
+
       if(data.occupancy === "Vacant"){ flags.push("Vacant home requires referral/possible decline."); score -= 30; }
+      if(data.occupancy === "Builder's Risk / Renovation" || data.renovation_over_30 === "Yes"){ flags.push("Renovation or builder risk exposure requires special underwriting."); score -= 18; }
       if(data.short_term_rental === "Yes"){ flags.push("Short-term rental exposure requires special program."); score -= 18; }
-      if(data.dogs === "Yes"){ flags.push("Animal bite exposure requires underwriting review."); score -= 15; }
-      if(data.pool === "Yes - unfenced"){ flags.push("Unfenced pool is outside standard appetite."); score -= 22; }
-      if(data.brushfire === "Yes"){ flags.push("Brushfire exposure requires review."); score -= 15; }
-      if(Number(data.claims_5yrs || 0) >= 3){ flags.push("High claim frequency."); score -= 20; }
+      if(data.dogs === "Yes - bite history" || data.dogs === "Restricted breed / unknown"){ flags.push("Animal bite or restricted breed exposure requires underwriting review."); score -= 18; }
+      if(data.pool === "Yes - unfenced" || data.pool === "Yes - diving board/slide"){ flags.push("Pool hazard outside standard appetite."); score -= 22; }
+      if(data.brushfire === "Yes"){ flags.push("Brushfire/wildfire exposure requires review."); score -= 15; }
+      if(Number(data.claims_5yrs || 0) >= 3){ flags.push("High property claim frequency."); score -= 20; }
+      if(Number(data.water_claims_5yrs || 0) >= 2){ flags.push("Multiple water losses require review."); score -= 18; }
+      if(data.electrical_type === "Knob and Tube" || data.electrical_type === "Fuses" || data.electrical_type === "Aluminum Wiring"){ flags.push("Electrical system may be outside carrier appetite."); score -= 20; }
+      if(data.plumbing_type === "Polybutylene"){ flags.push("Polybutylene plumbing requires underwriting review."); score -= 18; }
+      if(data.solid_fuel === "Yes"){ flags.push("Wood stove / solid fuel heat requires photos or inspection."); score -= 12; }
+      if(data.flood_zone === "A" || data.flood_zone === "AE" || data.flood_zone === "V" || data.flood_zone === "VE"){ flags.push("High-risk flood zone; confirm flood coverage."); score -= 12; }
+      if(data.unrepaired_damage === "Yes" || data.open_foundation_hazards === "Yes"){ flags.push("Existing damage or liability hazard present."); score -= 28; }
+      if(data.prior_fraud === "Yes"){ flags.push("Prior fraud/misrepresentation/rescission issue."); score -= 35; }
+      if(data.inspection_consent === "No"){ flags.push("Customer does not agree to inspection."); score -= 18; }
     }
 
     let status = "Preferred";
