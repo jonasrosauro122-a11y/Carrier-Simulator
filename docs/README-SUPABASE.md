@@ -1,70 +1,41 @@
-# Supabase Setup Guide
+# Supabase Setup
 
-Run `supabase-setup.sql` first. The portal expects these tables:
-
-- carrier_va_users
-- carrier_login_logs
-- carrier_policies
-- carrier_quotes
-- carrier_payments
-- carrier_endorsements
-- carrier_cancellations
-- carrier_documents
-- carrier_remarketing
-- carrier_audit_logs
-- carrier_qa_reviews
-
-It also expects this Storage bucket:
-
-```text
-carrier-documents
-```
-
-## Where to put your keys
-
-Open:
-
-```text
-js/config.js
-```
+1. Create a Supabase project.
+2. Open **SQL Editor**.
+3. Copy all content from `docs/supabase-setup.sql`.
+4. Click **Run**.
+5. Go to **Project Settings → API Keys**.
+6. Copy your **Project URL** and **publishable key** or legacy **anon public key**.
+7. Paste them into `js/config.js`.
 
 Example:
 
 ```js
 window.LAVA_SUPABASE = {
   url: "https://your-project-id.supabase.co",
-  anonKey: "sb_publishable_xxxxxxxxxxxxxxxxx",
+  anonKey: "sb_publishable_your_key_here",
   bucket: "carrier-documents"
 };
 ```
 
-Use a publishable key or legacy anon public key only.
+Do not use `service_role`, `sb_secret`, or secret keys inside this static website.
 
-## Test Checklist
+## What the Dashboard Tracks
 
-1. Log in as VA.
-2. Confirm dashboard opens immediately.
-3. Start Quote > Auto or Home.
-4. Fill required fields and click Rate Quote.
-5. Click Save Quote.
-6. Click Bind / Issue Policy.
-7. Go to Supabase Table Editor > carrier_policies.
-8. Confirm the policy record appears.
-9. Go to Endorsements and upload a document.
-10. Confirm the document appears in Storage > carrier-documents.
+- VA logins
+- Login time
+- Quote start time
+- Quote rated time
+- Quote duration
+- Quote number
+- Quote result
+- Policy issuance
+- Payments
+- Endorsements
+- Cancellations
+- Remarketing
+- Document uploads
+- Trainer QA reviews
+- Audit logs
 
-## Troubleshooting
-
-If portal says Local Mode:
-- `js/config.js` has empty URL/key, or
-- Netlify is still showing an older deploy, or
-- Supabase setup SQL was not run.
-
-If upload fails:
-- Confirm bucket is exactly `carrier-documents`.
-- Confirm storage policies were created by the SQL script.
-
-If save fails:
-- Re-run `docs/supabase-setup.sql`.
-- Confirm the tables exist.
-- Hard refresh the site with Ctrl + Shift + R.
+This project is for training/demo use only. Use dummy data.
