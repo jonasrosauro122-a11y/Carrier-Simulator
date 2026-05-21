@@ -8,8 +8,8 @@
   5. Never paste service_role, sb_secret, or secret keys here.
 */
 window.LAVA_SUPABASE = {
-  url: "",       // Example: "https://your-project-id.supabase.co"
-  anonKey: "",   // Example: "sb_publishable_..." or legacy anon public key
+  url: "https://veebxxhumvnkgmcszinh.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlZWJ4eGh1bXZua2dtY3N6aW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTA3OTIsImV4cCI6MjA5MjUyNjc5Mn0.sEnWsSrvNRBmarGnvlNPJdlmOii2t88UdfUmy7cDhl0",
   bucket: "carrier-documents"
 };
 
