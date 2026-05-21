@@ -5,12 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="LAVA CarrierOps training portal for insurance carrier workflow simulation, quote timing, VA activity monitoring, and trainer QA." />
   <meta name="theme-color" content="#7f1018" />
+
   <title>LAVA CarrierOps | Training Portal</title>
+
+  <!-- Favicon / App Icons from images folder -->
+  <link rel="icon" type="image/png" href="images/favicon.png" />
+  <link rel="shortcut icon" type="image/png" href="images/favicon.png" />
+  <link rel="apple-touch-icon" href="images/favicon.png" />
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Main CSS -->
   <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Logo fallback styling -->
+  <style>
+    .brand-mark,
+    .brand-mini {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .brand-logo {
+      width: 100%;
+      height: 100%;
+      max-width: 72px;
+      max-height: 72px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .brand-logo-mini {
+      width: 100%;
+      height: 100%;
+      max-width: 44px;
+      max-height: 44px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .brand-mark img,
+    .brand-mini img {
+      pointer-events: none;
+      user-select: none;
+    }
+  </style>
 </head>
+
 <body class="theme-light lava-bg">
   <a class="skip-link" href="#view">Skip to portal content</a>
 
@@ -26,7 +73,12 @@
   <section id="login-screen" class="login-page">
     <div class="login-hero reveal-up">
       <div class="hero-topline">
-        <div class="brand-mark">LC</div>
+
+        <!-- Main Login Logo -->
+        <div class="brand-mark">
+          <img src="images/logo.png" alt="LAVA CarrierOps Logo" class="brand-logo" />
+        </div>
+
         <div class="live-badge">
           <span class="live-dot"></span>
           Training Portal Online
@@ -34,8 +86,10 @@
       </div>
 
       <p class="eyebrow">CarrierOps Training Portal</p>
-      <h1>Insurance Carrier Workflow Simulator</h1>
-      <p class="hero-copy">Practice quoting, policy search, Auto ID cards, payments, endorsements, cancellations, remarketing, documentation, and trainer QA in one carrier-style portal.</p>
+      <h1>LAVA Carrier Workflow Simulator</h1>
+      <p class="hero-copy">
+        Practice quoting, policy search, Auto ID cards, payments, endorsements, cancellations, remarketing, documentation, and trainer QA in one carrier-style portal.
+      </p>
 
       <div class="hero-actions">
         <a class="btn primary hero-cta" href="#login-form">Start Training</a>
@@ -43,10 +97,25 @@
       </div>
 
       <div class="hero-grid professional-grid" aria-label="Portal highlights">
-        <span><strong>Supabase-ready</strong><small>Login, audit, and quote logs</small></span>
-        <span><strong>VA tracking</strong><small>Name, role, and session activity</small></span>
-        <span><strong>Quote timing</strong><small>Start-to-rate duration monitor</small></span>
-        <span><strong>Netlify-ready</strong><small>Static deploy friendly structure</small></span>
+        <span>
+          <strong>Carrier Simulator</strong>
+          <small>Login, audit, and quote logs</small>
+        </span>
+
+        <span>
+          <strong>VA tracking</strong>
+          <small>Name, role, and session activity</small>
+        </span>
+
+        <span>
+          <strong>Quote timing</strong>
+          <small>Start-to-rate duration monitor</small>
+        </span>
+
+        <span>
+          <strong>Netlify-ready</strong>
+          <small>Static deploy friendly structure</small>
+        </span>
       </div>
 
       <div class="workflow-strip" aria-label="Training workflow sequence">
@@ -102,7 +171,9 @@
       </button>
 
       <div class="access-footer">
-        <p class="help-text">Trainer code: <strong>LAVA2026</strong>. Use dummy training data only.</p>
+        <p class="help-text">
+          Trainer code: <strong>LAVA2026</strong>. Use dummy training data only.
+        </p>
         <p id="login-status" class="status-line"></p>
       </div>
     </form>
@@ -111,7 +182,12 @@
   <main id="app-shell" class="app-shell hidden">
     <header class="topbar">
       <div class="topbar-left">
-        <div class="brand-mini">LC</div>
+
+        <!-- Topbar Logo -->
+        <div class="brand-mini">
+          <img src="images/logo.png" alt="LAVA CarrierOps Logo" class="brand-logo-mini" />
+        </div>
+
         <div>
           <strong>LAVA CarrierOps</strong>
           <small>Training Portal</small>
@@ -138,8 +214,10 @@
           <span class="theme-icon">☀️</span>
           <span class="theme-text">Light Mode</span>
         </button>
+
         <span id="connection-pill" class="pill neutral">Checking...</span>
         <span id="user-pill" class="pill"></span>
+
         <button id="logout-btn" class="btn ghost small">Logout</button>
       </div>
     </header>
@@ -147,6 +225,7 @@
     <section id="view" class="view"></section>
   </main>
 
+  <!-- Scripts -->
   <script src="js/config.js"></script>
   <script src="data/carrier-questions.js"></script>
   <script src="js/store.js"></script>
