@@ -9,7 +9,9 @@
     quoteSession: null,
     quoteDraft: null,
     quoteResult: null,
-    selectedPolicy: null
+    selectedPolicy: null,
+    selectedScenario: null,
+    selectedScenarioOrder: 0
   };
 
   function fmtDate(iso){
@@ -128,8 +130,12 @@
     const code = $("#trainer-code").value.trim();
 
     if(!name || !email) return toast("Please enter VA full name and work email.", "bad");
-    if(role === "Trainer" && code !== (window.LAVA_TRAINER_CODE || "LAVA2026")){
-      return toast("Invalid Trainer/TL code.", "bad");
+    if(role === "Trainer"){
+      const validCodes = [String(window.LAVA_TRAINER_CODE || "LAVA2026"), "LAVA2026", "TRAINER2026"]
+        .map(c => c.trim().toUpperCase());
+      if(!validCodes.includes(code.toUpperCase())){
+        return toast("Invalid Trainer/TL code.", "bad");
+      }
     }
 
     const user = {
@@ -172,6 +178,8 @@
       dashboard: renderDashboard,
       search: renderSearch,
       quote: renderQuoteChooser,
+      scenarios: renderScenarios,
+      gradebook: renderGradebook,
       idcards: renderIdCards,
       payments: renderPayments,
       endorsements: renderEndorsements,
@@ -375,6 +383,8 @@
             </div>
             <div class="quick-actions">
               <button class="btn primary full" data-dashboard-route="quote">Start New Quote</button>
+                <button class="btn secondary full" data-dashboard-route="scenarios">Scenario Library</button>
+                <button class="btn full" data-dashboard-route="gradebook">Gradebook</button>
               <button class="btn secondary full" data-dashboard-route="search">Search Policy</button>
               <button class="btn secondary full" data-dashboard-route="endorsements">Process Endorsement</button>
               <button class="btn secondary full" data-dashboard-route="payments">Post Payment</button>
@@ -540,30 +550,209 @@
     `);
   }
 
+
+  function getScenarios(){
+    return (window.LAVA_ORDERED_SCENARIOS || []).slice().sort((a,b) => Number(a.order || 0) - Number(b.order || 0));
+  }
+
+  function getScenario(id){
+    return getScenarios().find(s => s.id === id) || null;
+  }
+
+  function renderScenarioSequence(){
+    return `<div class="scenario-sequence">
+      ${getScenarios().map(s => `<div class="sequence-step">
+        <span class="sequence-number">${Number(s.order || 0)}</span>
+        <strong>${escapeHtml(s.id)}</strong>
+        <small>${escapeHtml(s.line.toUpperCase())} - ${escapeHtml(s.title)}</small>
+      </div>`).join("")}
+    </div>`;
+  }
+
+  function renderScenarioCard(s){
+    const zillow = s.propertyReferenceUrl ? `<a class="btn small" href="${escapeHtml(s.propertyReferenceUrl)}" target="_blank" rel="noopener">Open Zillow Reference</a>` : "";
+    return `<div class="card pad scenario-card">
+      <div class="scenario-meta">
+        <span class="pill neutral">Order ${Number(s.order || 0)}</span>
+        <span class="pill ${s.line === "home" ? "warn" : "good"}">${escapeHtml(s.line.toUpperCase())}</span>
+        <span class="pill neutral">${escapeHtml(s.difficulty || "Training")}</span>
+      </div>
+      <h3>${escapeHtml(s.id)} - ${escapeHtml(s.title)}</h3>
+      <p class="help-text"><strong>Dummy customer:</strong> ${escapeHtml(s.customer?.name || "Training Customer")}<br><strong>Goal:</strong> ${escapeHtml(s.trainingGoal || "Complete the quote accurately.")}</p>
+      <ul class="scenario-list">${(s.summary || []).map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+      <div class="actions">
+        <button class="btn primary" data-start-scenario="${escapeHtml(s.id)}">Start This Scenario</button>
+        <a class="btn secondary" href="${escapeHtml(s.pdf)}" download>Download Scenario PDF</a>
+        ${zillow}
+        ${state.user?.role === "Trainer" ? `<button class="btn" data-answer-key="${escapeHtml(s.id)}">Answer Key</button>` : ""}
+      </div>
+    </div>`;
+  }
+
+  function renderScenarioBanner(s){
+    return `<section class="scenario-banner notice">
+      <strong>${escapeHtml(s.id)} - ${escapeHtml(s.title)}</strong><br>
+      Fixed order ${Number(s.order || 0)} of ${getScenarios().length}. Dummy customer: ${escapeHtml(s.customer?.name || "Training Customer")}.
+      ${s.propertyReferenceUrl ? `<br><a href="${escapeHtml(s.propertyReferenceUrl)}" target="_blank" rel="noopener">Open Zillow reference</a> and manually verify the property facts before submitting.` : ""}
+      <div class="actions" style="margin-top:10px"><a class="btn small secondary" href="${escapeHtml(s.pdf)}" download>Download Scenario PDF</a></div>
+    </section>`;
+  }
+
+  async function renderScenarios(){
+    state.selectedScenario = null;
+    $("#view").innerHTML = pageHead("Ordered Scenario Library", "Use these New Business scenarios in the exact same order for every VA attempt.", `
+      <a class="btn secondary" href="public/scenarios/All_New_Business_Home_Auto_Scenarios.pdf" download>Download All Scenarios PDF</a>
+      <button class="btn" id="go-gradebook">Open Gradebook</button>
+    `) + `
+      ${renderScenarioSequence()}
+      <div class="grid two">${getScenarios().map(s => renderScenarioCard(s)).join("")}</div>
+      <div id="answer-key-panel" style="margin-top:18px"></div>
+    `;
+    $("#go-gradebook").addEventListener("click", () => navigate("gradebook"));
+    $$('[data-start-scenario]').forEach(btn => btn.addEventListener('click', () => {
+      const scenario = getScenario(btn.dataset.startScenario);
+      startQuote(scenario.line, scenario.id);
+    }));
+    $$('[data-answer-key]').forEach(btn => btn.addEventListener('click', () => showAnswerKey(btn.dataset.answerKey)));
+  }
+
+  function showAnswerKey(id){
+    const s = getScenario(id);
+    if(!s) return;
+    const entries = Object.entries(s.answerKey || {});
+    $("#answer-key-panel").innerHTML = `<div class="card pad">
+      <div class="page-head" style="margin-bottom:14px">
+        <div><h2 style="margin:0">Trainer Answer Key - ${escapeHtml(s.id)}</h2><p>${escapeHtml(s.title)}</p></div>
+        <span class="pill bad">Trainer Only</span>
+      </div>
+      <div class="answer-key-grid">${entries.map(([k,v]) => `<div class="answer-key-item"><small>${escapeHtml(k)}</small>${escapeHtml(v)}</div>`).join("")}</div>
+    </div>`;
+  }
+
+  function normalizeAnswer(v){
+    return String(v ?? "").toLowerCase().trim().replace(/[$,]/g, "").replace(/\s+/g, " ").replace(/[.]/g, "");
+  }
+
+  function answerMatches(actual, expected){
+    const a = normalizeAnswer(actual);
+    const e = normalizeAnswer(expected);
+    if(!e) return true;
+    if(a === e) return true;
+    const an = Number(a.replace(/[^0-9.-]/g, ""));
+    const en = Number(e.replace(/[^0-9.-]/g, ""));
+    if(Number.isFinite(an) && Number.isFinite(en)) return Math.abs(an - en) < 0.01;
+    return a.includes(e) || e.includes(a);
+  }
+
+  function gradeAgainstScenario(type, data, scenario){
+    if(!scenario) return null;
+    const key = scenario.answerKey || {};
+    const critical = new Set(scenario.criticalFields || []);
+    const compared = Object.entries(key).map(([field, expected]) => {
+      const actual = data[field] || "";
+      const ok = answerMatches(actual, expected);
+      return { field, expected, actual, ok, critical: critical.has(field) };
+    });
+    const total = compared.length || 1;
+    const correct = compared.filter(x => x.ok).length;
+    const criticalMisses = compared.filter(x => !x.ok && x.critical);
+    const missed = compared.filter(x => !x.ok && !x.critical);
+    const baseScore = Math.round((correct / total) * 100);
+    const penalty = Math.min(25, criticalMisses.length * 3);
+    const score = Math.max(0, baseScore - penalty);
+    const gradeLabel = score >= 90 ? "Excellent / Ready" : score >= 80 ? "Passing / Minor Coaching" : score >= 70 ? "Needs Review" : "Failed Attempt";
+    const buckets = {
+      Applicant: ["insured_first","insured_last","email","phone","dob","marital_status","occupation","gender","residence_type"],
+      Property: ["property_address","property_city","property_state","property_zip","year_built","square_feet","stories","construction","foundation","roof_year","roof_material"],
+      Zillow: ["zillow_verified_address","zillow_year_built","zillow_square_feet","zillow_bedrooms","zillow_bathrooms","zillow_home_type","zillow_lot_size","zillow_roof_material","zillow_stories"],
+      Auto: ["vehicle_year","vehicle_make","vehicle_model","vin","ownership","lienholder_name","garaging_zip","additional_vehicles","accidents_5yrs","violations_5yrs","liability_limits","um_uim"],
+      Coverage: ["coverage_a","coverage_b","coverage_c","deductible","wind_hail","liability","medical","replacement_cost","water_backup","service_line","equipment_breakdown","comp_deductible","collision_deductible","rental","loan_lease_gap"],
+      Underwriting: ["claims_5yrs","water_claims_5yrs","weather_claims_5yrs","pool","trampoline","dogs","business","short_term_rental","lapse_days","sr22","business_delivery","major_violations_5yrs"],
+      MortgageBilling: ["mortgagee","mortgagee_address","loan_number","billing_method","payment_plan","escrowed","closing_request","paperless","auto_pay","paid_in_full"]
+    };
+    const sectionScores = Object.entries(buckets).map(([name, fields]) => {
+      const items = compared.filter(x => fields.includes(x.field));
+      if(!items.length) return null;
+      return { name, score: Math.round((items.filter(x => x.ok).length / items.length) * 100), total: items.length };
+    }).filter(Boolean);
+    const coaching = [];
+    if(criticalMisses.length) coaching.push("Review critical fields before submission: address, occupancy, claims, lender/lienholder, effective date, roof, or coverage limits.");
+    if(missed.some(x => /^zillow_/.test(x.field))) coaching.push("Improve Zillow/property verification accuracy. Manually compare year built, square footage, beds, baths, home type, lot size, and roof facts.");
+    if(missed.some(x => ["claims_5yrs","water_claims_5yrs","weather_claims_5yrs","accidents_5yrs","violations_5yrs","lapse_days"].includes(x.field))) coaching.push("Improve loss history and underwriting red flag capture.");
+    if(missed.some(x => ["coverage_a","liability_limits","um_uim","deductible","wind_hail"].includes(x.field))) coaching.push("Review coverage selection and customer instructions.");
+    if(!coaching.length) coaching.push("Strong accuracy. Continue using final review before rating.");
+    return { score, gradeLabel, compared, correct, total, criticalMisses, missed, sectionScores, coaching };
+  }
+
+  async function renderGradebook(){
+    const quotes = await store.list("carrier_quotes", {limit:1000});
+    const graded = quotes.filter(q => q.rating_details?.scenario_grade || q.details?.scenario_id || q.scenario_id);
+    $("#view").innerHTML = pageHead("Scenario Gradebook", "Review graded Home and Auto New Business scenario attempts while keeping the original CarrierOps style.", `
+      <button class="btn secondary" id="export-gradebook">Export Gradebook CSV</button>
+      <button class="btn" id="refresh-gradebook">Refresh</button>
+    `) + `
+      <div class="card pad">
+        ${table(["Time","VA","Scenario","Type","Score","Critical Misses","Duration","Status"], graded.map(q => {
+          const g = q.rating_details?.scenario_grade || {};
+          return [fmtDate(q.created_at), q.va_name || "-", q.details?.scenario_id || q.scenario_id || "-", (q.quote_type || "").toUpperCase(), g.score != null ? g.score + "%" : "-", g.criticalMisses ? g.criticalMisses.length : 0, q.duration_seconds ? fmtDuration(q.duration_seconds) : "-", badge(g.gradeLabel || q.status || "-")];
+        }))}
+      </div>
+    `;
+    $("#refresh-gradebook").addEventListener("click", renderGradebook);
+    $("#export-gradebook").addEventListener("click", () => exportGradebookCsv(graded));
+  }
+
+  function exportGradebookCsv(rows){
+    const headers = ["created_at","va_name","va_email","scenario_id","quote_type","score","critical_misses","duration_seconds","status"];
+    const csv = [headers.join(",")].concat(rows.map(q => {
+      const g = q.rating_details?.scenario_grade || {};
+      const vals = [q.created_at, q.va_name, q.va_email, q.details?.scenario_id || q.scenario_id || "", q.quote_type, g.score ?? "", g.criticalMisses ? g.criticalMisses.length : "", q.duration_seconds || "", g.gradeLabel || q.status || ""];
+      return vals.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",");
+    })).join("\n");
+    downloadText("lava-scenario-gradebook.csv", csv, "text/csv");
+  }
+
   async function renderQuoteChooser(){
     state.quoteSession = null;
     state.quoteDraft = null;
     state.quoteResult = null;
-    $("#view").innerHTML = pageHead("Start New Quote", "Choose the line of business. Every quote start and rating duration will be documented on the Dashboard.") + `
-      <div class="quote-chooser grid two">
+    state.selectedScenario = null;
+    $("#view").innerHTML = pageHead("Start New Quote", "Choose an ordered New Business scenario or start a free-practice carrier quote. Scenario order is fixed for every VA.", `
+      <a class="btn secondary" href="public/scenarios/All_New_Business_Home_Auto_Scenarios.pdf" download>Download All Scenarios PDF</a>
+    `) + `
+      ${renderScenarioSequence()}
+      <div class="grid two">
+        ${getScenarios().map(s => renderScenarioCard(s)).join("")}
+      </div>
+      <div class="notice" style="margin-top:18px"><strong>Training rule:</strong> All VAs should run the scenarios in this order: HOME-01, HOME-02, AUTO-01, AUTO-02. This keeps grading consistent across the team.</div>
+      <div class="quote-chooser grid two" style="margin-top:18px">
         <button class="option" id="start-auto">
-          <h3>Auto Quote</h3>
-          <p>Start a realistic personal auto quote with applicant, prior insurance, vehicle, driver, coverage, and underwriting questions.</p>
+          <h3>Free Practice Auto Quote</h3>
+          <p>Start the original carrier-style personal auto quote without scenario grading.</p>
           <span class="btn primary">Start Auto Quote</span>
         </button>
         <button class="option" id="start-home">
-          <h3>Home Quote</h3>
-          <p>Start a realistic homeowners quote with property, construction, protection, coverage, claims, and risk questions.</p>
+          <h3>Free Practice Home Quote</h3>
+          <p>Start the original carrier-style homeowners quote without scenario grading.</p>
           <span class="btn primary">Start Home Quote</span>
         </button>
       </div>
-      <div class="notice" style="margin-top:18px">The system will start a timer when the VA selects Auto or Home. The timer stops when the VA clicks Rate Quote.</div>
     `;
     $("#start-auto").addEventListener("click", () => startQuote("auto"));
     $("#start-home").addEventListener("click", () => startQuote("home"));
+    $$('[data-start-scenario]').forEach(btn => btn.addEventListener('click', () => {
+      const scenario = getScenario(btn.dataset.startScenario);
+      startQuote(scenario.line, scenario.id);
+    }));
+    $$('[data-answer-key]').forEach(btn => btn.addEventListener('click', () => {
+      navigate("scenarios").then(() => showAnswerKey(btn.dataset.answerKey));
+    }));
   }
 
-  async function startQuote(type){
+  async function startQuote(type, scenarioId){
+    const scenario = scenarioId ? getScenario(scenarioId) : null;
+    state.selectedScenario = scenario;
+    state.selectedScenarioOrder = scenario ? scenario.order : 0;
     const started = CarrierUtils.nowIso();
     const session = {
       id: CarrierUtils.uuid(),
@@ -571,22 +760,27 @@
       va_email: state.user.email,
       role: state.user.role,
       quote_type: type,
+      scenario_id: scenario ? scenario.id : "",
+      scenario_title: scenario ? scenario.title : "",
+      scenario_order: scenario ? scenario.order : 0,
       started_at: started,
       status: "Started",
-      details: { route: "quote", source: "Start Quote Button" }
+      details: { route: "quote", source: scenario ? "Ordered Scenario" : "Start Quote Button", scenario }
     };
     state.quoteSession = await store.insert("carrier_quote_sessions", session);
-    store.logAudit(state.user, "QUOTE_STARTED", `${state.user.name} started a ${type.toUpperCase()} quote.`, { quote_session_id: state.quoteSession.id, quote_type: type }).catch(console.warn);
+    store.logAudit(state.user, "QUOTE_STARTED", `${state.user.name} started a ${type.toUpperCase()} quote${scenario ? " for " + scenario.id : ""}.`, { quote_session_id: state.quoteSession.id, quote_type: type, scenario_id: scenario ? scenario.id : "" }).catch(console.warn);
     renderQuoteForm(type);
   }
 
   function renderQuoteForm(type){
     const schema = window.QUOTE_SCHEMAS[type];
-    $("#view").innerHTML = pageHead(schema.title, "Complete the carrier-style questions. Required fields are validated before rating.", `
+    const scenario = state.selectedScenario;
+    $("#view").innerHTML = pageHead(scenario ? `${scenario.id}: ${schema.title}` : schema.title, scenario ? `Ordered scenario ${scenario.order} of ${getScenarios().length}: ${scenario.title}` : "Complete the carrier-style questions. Required fields are validated before rating.", `
       <span class="pill warn" id="quote-timer">Timer: 0s</span>
       <button class="btn ghost" id="cancel-quote">Cancel Quote</button>
     `) + `
       <div class="card pad">
+        ${scenario ? renderScenarioBanner(scenario) : ""}
         <div class="progress-bar"><span id="quote-progress"></span></div>
         <form id="quote-form" style="margin-top:18px">
           ${schema.sections.map(section => `
@@ -598,17 +792,18 @@
             </section>
           `).join("")}
           <div class="actions">
-            <button class="btn primary" type="button" id="rate-quote-btn">Rate Quote</button>
+            <button class="btn primary" type="button" id="review-submit-btn">Review &amp; Submit</button>
             <button class="btn" type="button" id="save-draft-btn">Save Draft</button>
             <button class="btn ghost" type="button" id="reset-form-btn">Clear Form</button>
           </div>
         </form>
+        <div id="quote-review" style="margin-top:18px"></div>
         <div id="quote-result" style="margin-top:18px"></div>
       </div>
     `;
 
     $("#cancel-quote").addEventListener("click", () => navigate("quote"));
-    $("#rate-quote-btn").addEventListener("click", rateQuote);
+    $("#review-submit-btn").addEventListener("click", openFinalReview);
     $("#save-draft-btn").addEventListener("click", saveDraft);
     $("#reset-form-btn").addEventListener("click", () => $("#quote-form").reset());
 
@@ -770,8 +965,120 @@
     return { premium, down, monthly, flags, score: Math.max(0, score), status };
   }
 
+  function getQuoteFieldDefs(type){
+    const schema = window.QUOTE_SCHEMAS[type];
+    const defs = {};
+    (schema?.sections || []).forEach(sec => (sec.fields || []).forEach(f => { defs[f.name] = { label: f.label, section: sec.title, required: !!f.required }; }));
+    return defs;
+  }
+
+  // Requirement #9 - obvious inconsistency detection for the review page.
+  function findInconsistencies(type, data){
+    const issues = [];
+    const num = v => Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+    const isYes = v => /^yes/i.test(String(v || "").trim());
+
+    if(data.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) issues.push("Email address does not look valid.");
+    if(data.effective_date && data.expiration_date && data.effective_date > data.expiration_date) issues.push("Effective date is after the expiration date.");
+
+    if(type === "home"){
+      const yb = num(data.year_built);
+      if(yb && (yb < 1850 || yb > new Date().getFullYear())) issues.push("Year built is outside a realistic range.");
+      const ry = num(data.roof_year);
+      if(ry && yb && ry < yb) issues.push("Roof year is older than the year the home was built.");
+      if(data.zillow_year_built && data.year_built && num(data.zillow_year_built) !== yb) issues.push("Entered year built does not match the Zillow-verified year built.");
+      if(data.zillow_square_feet && data.square_feet && num(data.zillow_square_feet) !== num(data.square_feet)) issues.push("Entered square footage does not match the Zillow-verified square footage.");
+      if(isYes(data.prior_claims) && !String(data.claims_5yrs || "").trim()) issues.push("Prior claims marked Yes but claim count / details are blank.");
+      if(data.mortgagee && !data.loan_number) issues.push("Mortgagee entered but loan number is blank.");
+    }else{
+      if(data.garaging_same === "No" && !String(data.garaging_address || "").trim()) issues.push("Garaging is marked different from mailing, but no garaging address was entered.");
+      const li = num(data.prior_limits);
+      if(data.currently_insured === "No" && data.prior_carrier) issues.push("Not currently insured but a prior carrier is listed - confirm prior coverage.");
+      if(isYes(data.prior_claims) && !num(data.accidents_5yrs) && !num(data.comp_claims_5yrs)) issues.push("Prior claims marked Yes but no accidents/claims counts were entered.");
+      if(data.ownership && data.ownership !== "Owned" && !String(data.lienholder_name || data.lienholder || "").trim()) issues.push("Vehicle is financed/leased but no lienholder/loss payee was entered.");
+    }
+    return issues;
+  }
+
+  // Requirement #9 - Final Review Before Submit.
+  function openFinalReview(){
+    const form = $("#quote-form");
+    if(!form) return;
+    const type = state.quoteSession.quote_type;
+    const defs = getQuoteFieldDefs(type);
+    const data = formData(form);
+
+    const missingRequired = $$("[required]", form)
+      .filter(f => !String(f.value || "").trim())
+      .map(f => defs[f.name]?.label || f.name);
+
+    const inconsistencies = findInconsistencies(type, data);
+
+    // Group entered answers by section for the review page.
+    const sections = (window.QUOTE_SCHEMAS[type].sections || []).map(sec => {
+      const rows = (sec.fields || []).map(f => {
+        const val = data[f.name];
+        const blank = !String(val || "").trim();
+        const flagMissing = f.required && blank;
+        return `<tr class="${flagMissing ? "review-missing" : ""}">
+          <td>${escapeHtml(f.label)}${f.required ? " <span style='color:#b42318'>*</span>" : ""}</td>
+          <td>${blank ? `<em class="${flagMissing ? "review-missing-text" : "help-text"}">${flagMissing ? "MISSING" : "blank"}</em>` : escapeHtml(val)}</td>
+        </tr>`;
+      }).join("");
+      return `<details class="review-section" ${ (sec.fields||[]).some(f => f.required && !String(data[f.name]||"").trim()) ? "open" : "" }>
+        <summary><strong>${escapeHtml(sec.title)}</strong></summary>
+        <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th style="width:42%">Field</th><th>Entered Answer</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </details>`;
+    }).join("");
+
+    $("#quote-review").innerHTML = `
+      <div class="card pad" id="review-card">
+        <div class="page-head" style="margin-bottom:12px">
+          <div><h2 style="margin:0">Final Review Before Submit</h2><p>Confirm every answer below. You can go back to edit before the attempt is graded and saved.</p></div>
+          <span class="pill ${missingRequired.length ? "bad" : "good"}">${missingRequired.length ? missingRequired.length + " required field(s) missing" : "All required fields complete"}</span>
+        </div>
+
+        ${missingRequired.length ? `<div class="notice bad"><strong>Missing required fields:</strong><br>${missingRequired.map(escapeHtml).join("<br>")}</div>` : ``}
+        ${inconsistencies.length ? `<div class="notice warn" style="margin-top:12px"><strong>Possible inconsistencies to double-check:</strong><br>${inconsistencies.map(escapeHtml).join("<br>")}</div>` : `<div class="notice good" style="margin-top:12px">No obvious inconsistencies detected.</div>`}
+
+        <div style="margin-top:14px">${sections}</div>
+
+        <label class="review-confirm" style="display:flex;align-items:center;gap:10px;margin-top:16px">
+          <input type="checkbox" id="review-confirm-box" style="width:auto" />
+          <span>I confirm these answers are complete and accurate for this training attempt.</span>
+        </label>
+
+        <div class="actions" style="margin-top:14px">
+          <button class="btn primary" type="button" id="confirm-submit-btn" ${missingRequired.length ? "disabled" : ""}>Confirm &amp; Submit Final Attempt</button>
+          <button class="btn ghost" type="button" id="back-edit-btn">Go Back &amp; Edit</button>
+        </div>
+        ${missingRequired.length ? `<p class="help-text" style="margin-top:8px">Complete the missing required fields above, then reopen Review &amp; Submit.</p>` : ``}
+      </div>
+    `;
+
+    const reviewCardEl = $("#review-card");
+    if(reviewCardEl && reviewCardEl.scrollIntoView) reviewCardEl.scrollIntoView({ behavior:"smooth", block:"start" });
+    $("#back-edit-btn").addEventListener("click", () => {
+      $("#quote-review").innerHTML = "";
+      const f = $("#quote-form");
+      if(f && f.scrollIntoView) f.scrollIntoView({ behavior:"smooth", block:"start" });
+    });
+
+    const confirmBtn = $("#confirm-submit-btn");
+    const box = $("#review-confirm-box");
+    if(box && confirmBtn && !missingRequired.length){
+      confirmBtn.disabled = !box.checked;
+      box.addEventListener("change", () => { confirmBtn.disabled = !box.checked; });
+      confirmBtn.addEventListener("click", () => {
+        if(!box.checked) return toast("Please confirm the attempt before submitting.", "bad");
+        $("#quote-review").innerHTML = "";
+        rateQuote();
+      });
+    }
+  }
+
   async function rateQuote(){
-    const btn = $("#rate-quote-btn");
+    const btn = $("#confirm-submit-btn") || $("#review-submit-btn");
     const form = $("#quote-form");
     if(!validateRequired(form)) return;
 
@@ -780,6 +1087,14 @@
       const data = formData(form);
       const type = state.quoteSession.quote_type;
       const result = calculateQuote(type, data);
+      const scenario = state.selectedScenario || (state.quoteSession?.scenario_id ? getScenario(state.quoteSession.scenario_id) : null);
+      const scenarioGrade = gradeAgainstScenario(type, data, scenario);
+      if(scenarioGrade){
+        result.score = scenarioGrade.score;
+        result.status = scenarioGrade.criticalMisses.length ? "Graded - Critical Review" : (scenarioGrade.score >= 80 ? "Graded - Passing" : "Graded - Coaching Needed");
+        result.flags = (result.flags || []).concat(scenarioGrade.criticalMisses.map(x => `Critical miss: ${x.field} expected ${x.expected || "-"}, entered ${x.actual || "blank"}`));
+        result.scenario_grade = scenarioGrade;
+      }
       const ratedAt = CarrierUtils.nowIso();
       const durationSeconds = Math.max(1, Math.floor((new Date(ratedAt).getTime() - new Date(state.quoteSession.started_at).getTime()) / 1000));
       const quoteNumber = `LVA-${type.toUpperCase()}-Q-${Date.now().toString().slice(-7)}`;
@@ -800,6 +1115,9 @@
         va_email: state.user.email,
         quote_session_id: state.quoteSession.id,
         quote_type: type,
+        scenario_id: scenario ? scenario.id : "",
+        scenario_title: scenario ? scenario.title : "",
+        scenario_order: scenario ? scenario.order : 0,
         quote_number: quoteNumber,
         insured_name: [data.insured_first, data.insured_last].filter(Boolean).join(" "),
         email: data.email || "",
@@ -807,7 +1125,7 @@
         status: result.status,
         premium: result.premium,
         duration_seconds: durationSeconds,
-        details: data,
+        details: Object.assign({}, data, { scenario_id: scenario ? scenario.id : "", scenario_title: scenario ? scenario.title : "", scenario_order: scenario ? scenario.order : 0 }),
         rating_details: result
       });
 
@@ -816,7 +1134,7 @@
       });
 
       renderQuoteResult(quoteRow, state.quoteResult);
-      toast(`Quote rated in ${fmtDuration(durationSeconds)} and documented on Dashboard.`, "good");
+      toast(`Attempt submitted in ${fmtDuration(durationSeconds)}, graded, and saved to the Gradebook.`, "good");
     }catch(err){
       console.error(err);
       toast("Unable to rate quote. Please check required fields and Supabase setup.", "bad");
@@ -836,17 +1154,134 @@
         <div class="notice ${result.status === "Declined" ? "bad" : result.status === "Referral" ? "warn" : "good"}" style="margin-top:14px">
           Carrier Result: <strong>${escapeHtml(result.status)}</strong>. QA Score: <strong>${result.score}%</strong>
         </div>
-        ${result.flags.length ? `<div class="notice warn" style="margin-top:14px"><strong>Underwriting Flags:</strong><br>${result.flags.map(escapeHtml).join("<br>")}</div>` : `<div class="notice good" style="margin-top:14px">No major underwriting flags found.</div>`}
+        ${result.flags.length ? `<div class="notice warn" style="margin-top:14px"><strong>Underwriting / Grading Flags:</strong><br>${result.flags.map(escapeHtml).join("<br>")}</div>` : `<div class="notice good" style="margin-top:14px">No major underwriting flags found.</div>`}
+        ${result.scenario_grade ? renderScenarioGradeReport(result.scenario_grade) : ""}
         <div class="actions" style="margin-top:16px">
           <button class="btn success" id="bind-policy-btn">Bind / Issue Policy</button>
-          <button class="btn secondary" id="print-quote-btn">Print Quote</button>
-          <button class="btn" id="go-dashboard-btn">View Dashboard Tracking</button>
+          <button class="btn secondary" id="download-result-pdf-btn">Download Result PDF</button>
+          <button class="btn" id="retry-scenario-btn">Retry Scenario</button>
+          <button class="btn ghost" id="print-quote-btn">Print Quote</button>
+          <button class="btn ghost" id="go-dashboard-btn">View Dashboard Tracking</button>
         </div>
       </div>
     `;
     $("#bind-policy-btn").addEventListener("click", () => bindPolicy(quoteRow, result));
     $("#print-quote-btn").addEventListener("click", () => window.print());
     $("#go-dashboard-btn").addEventListener("click", () => navigate("dashboard"));
+    $("#download-result-pdf-btn").addEventListener("click", () => downloadResultPdf(quoteRow, result));
+    const retryBtn = $("#retry-scenario-btn");
+    if(retryBtn){
+      const sc = state.selectedScenario || (quoteRow.scenario_id ? getScenario(quoteRow.scenario_id) : null);
+      if(sc){
+        retryBtn.addEventListener("click", () => { toast("Restarting scenario for another attempt."); startQuote(sc.line, sc.id); });
+      }else{
+        retryBtn.addEventListener("click", () => startQuote(quoteRow.quote_type));
+      }
+    }
+  }
+
+  // Requirement #10 - downloadable graded result PDF (client-side, no server needed).
+  function downloadResultPdf(quoteRow, result){
+    const g = result.scenario_grade;
+    const lines = [];
+    lines.push("LAVA CarrierOps - Graded Scenario Result");
+    lines.push("Training simulator - dummy data only");
+    lines.push("");
+    lines.push(`Quote Number: ${result.quoteNumber || "-"}`);
+    lines.push(`VA: ${state.user?.name || "-"}  (${state.user?.email || "-"})`);
+    lines.push(`Line of Business: ${(quoteRow.quote_type || "").toUpperCase()}`);
+    lines.push(`Scenario: ${quoteRow.scenario_id || "Free practice"}${quoteRow.scenario_title ? " - " + quoteRow.scenario_title : ""}`);
+    lines.push(`Submitted: ${fmtDate(result.ratedAt)}`);
+    lines.push(`Duration: ${fmtDuration(result.durationSeconds)}`);
+    lines.push(`Annual Premium: ${money(result.premium)}  (Down ${money(result.down)} / Monthly ${money(result.monthly)})`);
+    lines.push(`Carrier Result: ${result.status}`);
+    lines.push("");
+    if(g){
+      lines.push(`SCORE: ${g.score}%  -  ${g.gradeLabel}`);
+      const passStatus = g.score >= 90 ? "Excellent / Ready" : g.score >= 80 ? "Passing / Minor coaching" : g.score >= 70 ? "Needs review" : "Failed attempt";
+      lines.push(`Pass/Fail Status: ${passStatus}`);
+      lines.push(`Correct fields: ${g.correct} of ${g.total}`);
+      lines.push(`Critical misses: ${g.criticalMisses.length}`);
+      lines.push("");
+      lines.push("Section Scores:");
+      g.sectionScores.forEach(s => lines.push(`  - ${s.name}: ${s.score}% (${s.total} fields)`));
+      lines.push("");
+      if(g.criticalMisses.length){
+        lines.push("Critical Misses:");
+        g.criticalMisses.forEach(x => lines.push(`  - ${x.field}: expected "${x.expected}", entered "${x.actual || "blank"}"`));
+        lines.push("");
+      }
+      if(g.missed.length){
+        lines.push("Other Missed Items:");
+        g.missed.forEach(x => lines.push(`  - ${x.field}: expected "${x.expected}", entered "${x.actual || "blank"}"`));
+        lines.push("");
+      }
+      lines.push("Coaching Notes:");
+      g.coaching.forEach(c => lines.push(`  - ${c}`));
+    }else{
+      lines.push("This was a free-practice quote (not scenario-graded).");
+      if(result.flags?.length){
+        lines.push("");
+        lines.push("Underwriting Flags:");
+        result.flags.forEach(f => lines.push(`  - ${f}`));
+      }
+    }
+
+    const filenameBase = `lava-result-${(quoteRow.scenario_id || quoteRow.quote_type || "quote")}-${(result.quoteNumber || Date.now())}`;
+
+    // Prefer a real PDF via jsPDF if available; gracefully fall back to a text file.
+    const jspdfNS = window.jspdf || window.jsPDF;
+    const JsPdf = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
+    if(JsPdf){
+      try{
+        const doc = new JsPdf({ unit: "pt", format: "letter" });
+        const margin = 48;
+        let y = margin;
+        const pageH = doc.internal.pageSize.getHeight();
+        doc.setFont("helvetica","bold"); doc.setFontSize(15);
+        doc.text("LAVA CarrierOps", margin, y); y += 18;
+        doc.setFont("helvetica","normal"); doc.setFontSize(10);
+        lines.slice(1).forEach(line => {
+          const isHeader = /:$/.test(line) && !line.startsWith("  ");
+          const big = /^SCORE:/.test(line);
+          doc.setFont("helvetica", (isHeader || big) ? "bold" : "normal");
+          doc.setFontSize(big ? 13 : 10);
+          const wrapped = doc.splitTextToSize(line || " ", 515);
+          wrapped.forEach(w => {
+            if(y > pageH - margin){ doc.addPage(); y = margin; }
+            doc.text(w, margin, y); y += big ? 18 : 14;
+          });
+        });
+        doc.save(filenameBase + ".pdf");
+        toast("Result PDF downloaded.", "good");
+        return;
+      }catch(err){
+        console.warn("jsPDF failed, falling back to text export.", err);
+      }
+    }
+    downloadText(filenameBase + ".txt", lines.join("\n"), "text/plain");
+    toast("Result downloaded (text). PDF library was unavailable.", "warn");
+  }
+
+
+  function renderScenarioGradeReport(g){
+    const scoreClass = g.score >= 90 ? "good" : g.score >= 80 ? "warn" : "bad";
+    return `<div class="card pad" style="margin-top:16px">
+      <div class="grid two">
+        <div>
+          <p class="eyebrow">Graded Scenario Result</p>
+          <h2 style="margin:0 0 10px">${escapeHtml(g.gradeLabel)}</h2>
+          <p class="help-text">Correct fields: ${g.correct} of ${g.total}. Critical misses: ${g.criticalMisses.length}.</p>
+          <div class="grade-breakdown">${g.sectionScores.map(s => `<div class="grade-chip"><small>${escapeHtml(s.name)}</small><strong>${s.score}%</strong></div>`).join("")}</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center"><div class="score-ring ${scoreClass}">${g.score}%</div></div>
+      </div>
+      ${g.criticalMisses.length ? `<div class="notice bad" style="margin-top:14px"><strong>Critical Misses</strong><br>${g.criticalMisses.map(x => `${escapeHtml(x.field)}: expected <strong>${escapeHtml(x.expected)}</strong>, entered <strong>${escapeHtml(x.actual || "blank")}</strong>`).join("<br>")}</div>` : `<div class="notice good" style="margin-top:14px">No critical misses found.</div>`}
+      ${g.coaching.length ? `<div class="notice warn" style="margin-top:14px"><strong>Coaching Notes</strong><br>${g.coaching.map(escapeHtml).join("<br>")}</div>` : ""}
+      <details style="margin-top:14px"><summary><strong>Show field-by-field comparison</strong></summary>
+        <div class="table-wrap compare-table" style="margin-top:10px"><table><thead><tr><th>Field</th><th>Expected</th><th>Entered</th><th>Status</th></tr></thead><tbody>${g.compared.map(x => `<tr><td>${escapeHtml(x.field)}${x.critical ? " *" : ""}</td><td>${escapeHtml(x.expected)}</td><td>${escapeHtml(x.actual || "blank")}</td><td>${x.ok ? "Correct" : "Missed"}</td></tr>`).join("")}</tbody></table></div>
+      </details>
+    </div>`;
   }
 
   async function bindPolicy(quoteRow, result){
@@ -1182,7 +1617,7 @@
       store.list("carrier_quotes", {limit:500}),
       store.list("carrier_quote_sessions", {limit:500})
     ]);
-    $("#view").innerHTML = pageHead("Trainer QA Review", "Review VA quote accuracy, speed, documentation, and underwriting flag handling.") + `
+    $("#view").innerHTML = pageHead("Trainer QA Review", "Review VA quote accuracy, speed, documentation, and underwriting flag handling.", `<button class="btn secondary" id="qa-scenarios">Open Scenario Library</button>`) + `
       <div class="grid two">
         <div class="card pad">
           ${table(["Quote #","VA","Type","Status","Premium","Duration","Action"],
@@ -1202,6 +1637,8 @@
         </div>
       </div>
     `;
+    const qaScenarioBtn = $("#qa-scenarios");
+    if(qaScenarioBtn) qaScenarioBtn.addEventListener("click", () => navigate("scenarios"));
     $$("[data-review-quote]").forEach(btn => btn.addEventListener("click", () => {
       const q = quotes.find(x => x.id === btn.dataset.reviewQuote);
       renderReviewPanel(q);
