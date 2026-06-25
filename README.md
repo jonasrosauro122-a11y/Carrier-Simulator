@@ -176,3 +176,34 @@ The original CarrierOps UI, CSS, dashboard, navigation, carrier workflow tabs, q
 - Demo RLS policies are permissive for `anon` so the simulator works without full auth. Tighten these (gate `answer_key` and trainer tables behind `profiles.role = 'Trainer'`) before any non-training use.
 - Zillow is referenced by public link only — the app never scrapes or bypasses Zillow; trainees verify manually.
 - The deployed anon Supabase key is public by design; it is safe only because RLS protects the data. Never put a service_role key on the frontend.
+
+
+## Latest Fix: Theme + Supabase Upgrade
+
+This version includes a theme harmonization patch in `css/theme-fixes.css`.
+It keeps the original CarrierOps simulator style, but improves dark-mode readability for cards, tables, notices, forms, buttons, scenario cards, review pages, and grade reports.
+
+### Supabase SQL
+
+Run this file in Supabase SQL Editor:
+
+```text
+docs/RUN_THIS_IN_SUPABASE_SQL_EDITOR.sql
+```
+
+That is the complete setup file. It includes the original CarrierOps tables, scenario tracking columns, storage bucket, RLS policies, and the normalized New Business scenario tables/seeds.
+
+### Vercel Environment Variables
+
+Add these in Vercel → Project → Settings → Environment Variables:
+
+```text
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_or_anon_public_key_here
+SUPABASE_BUCKET=carrier-documents
+LAVA_TRAINER_CODE=TRAINER2026
+```
+
+Then redeploy. The build script will inject these into `dist/js/config.js`.
+
+See `docs/README-SUPABASE.md` for the full setup guide.
