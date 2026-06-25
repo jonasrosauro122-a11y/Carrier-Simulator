@@ -88,7 +88,7 @@
       <p class="eyebrow">CarrierOps Training Portal</p>
       <h1>LAVA Carrier Workflow Simulator</h1>
       <p class="hero-copy">
-        Practice quoting, policy search, Auto ID cards, payments, endorsements, cancellations, remarketing, documentation, and trainer QA in one carrier-style portal.
+        Practice carrier workflow plus graded Home and Auto New Business quoting scenarios, property verification, documentation, and trainer QA in one carrier-style portal.
       </p>
 
       <div class="hero-actions">
@@ -121,9 +121,9 @@
       <div class="workflow-strip" aria-label="Training workflow sequence">
         <span>Login</span>
         <i></i>
-        <span>Quote</span>
+        <span>Scenario</span>
         <i></i>
-        <span>Document</span>
+        <span>Quote</span>
         <i></i>
         <span>Trainer QA</span>
       </div>
@@ -172,7 +172,7 @@
 
       <div class="access-footer">
         <p class="help-text">
-          Trainer code: <strong>LAVA2026</strong>. Use dummy training data only.
+          Trainer code: <strong>LAVA2026</strong> or <strong>TRAINER2026</strong>. Use dummy training data only.
         </p>
         <p id="login-status" class="status-line"></p>
       </div>
@@ -198,6 +198,8 @@
         <button data-route="dashboard" class="nav-link active">Dashboard</button>
         <button data-route="search" class="nav-link">Policy Search</button>
         <button data-route="quote" class="nav-link">New Quote</button>
+        <button data-route="scenarios" class="nav-link">Scenario Library</button>
+        <button data-route="gradebook" class="nav-link">Gradebook</button>
         <button data-route="idcards" class="nav-link">Auto ID Cards</button>
         <button data-route="payments" class="nav-link">Payments</button>
         <button data-route="endorsements" class="nav-link">Endorsements</button>
@@ -226,8 +228,11 @@
   </main>
 
   <!-- Scripts -->
+  <!-- jsPDF (UMD) for downloadable graded result PDFs; app has a text fallback if this fails to load -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="js/config.js"></script>
   <script src="data/carrier-questions.js"></script>
+  <script src="data/ordered-scenarios.js"></script>
   <script src="js/store.js"></script>
   <script src="js/app.js"></script>
 </body>
