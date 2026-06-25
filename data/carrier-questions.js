@@ -258,6 +258,22 @@ window.QUOTE_SCHEMAS = {
         ]
       },
       {
+        title: "Zillow / Property Verification - Attention to Detail",
+        fields: [
+          {name:"zillow_opened", label:"Did You Open the Zillow Property Reference?", type:"select", options:["No","Yes"], required:true},
+          {name:"zillow_verified_address", label:"Zillow Verified Full Address", type:"text", required:true},
+          {name:"zillow_year_built", label:"Zillow Year Built", type:"number", required:true},
+          {name:"zillow_square_feet", label:"Zillow Finished Square Feet", type:"number", required:true},
+          {name:"zillow_bedrooms", label:"Zillow Bedrooms", type:"number", required:true},
+          {name:"zillow_bathrooms", label:"Zillow Bathrooms", type:"text", required:true},
+          {name:"zillow_home_type", label:"Zillow Home Type / Property Subtype", type:"text", required:true},
+          {name:"zillow_lot_size", label:"Zillow Lot Size", type:"text", required:true},
+          {name:"zillow_roof_material", label:"Zillow Roof Material if Listed", type:"text", required:true},
+          {name:"zillow_stories", label:"Zillow Stories / Levels if Listed", type:"text", required:true},
+          {name:"zillow_mismatch_notes", label:"Zillow Mismatch Notes / Missing Data Notes", type:"textarea", required:true, placeholder:"Explain any mismatch between customer notes, Zillow facts, and quote inputs."}
+        ]
+      },
+      {
         title: "Property Valuation & Construction",
         fields: [
           {name:"year_built", label:"Year Built", type:"number", required:true},
