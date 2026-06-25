@@ -1387,3 +1387,28 @@ body.theme-light label{
     justify-content:space-between;
   }
 }
+
+
+/* =========================================================
+   Ordered Scenario + Graded Quote Add-ons
+   Additive only: keeps original CarrierOps visual system.
+   ========================================================= */
+.scenario-sequence{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.sequence-step{position:relative;padding:18px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,#fff,#f8fbff)}
+.sequence-step strong{display:block;color:var(--brand);font-size:18px;margin:8px 0 6px}.sequence-step small{color:var(--muted);line-height:1.45}.sequence-number{width:34px;height:34px;border-radius:999px;display:inline-grid;place-items:center;background:var(--brand);color:#fff;font-weight:950}.scenario-card{display:flex;flex-direction:column;gap:12px}.scenario-card h3{margin:0;color:var(--brand);font-size:22px}.scenario-meta{display:flex;gap:8px;flex-wrap:wrap}.scenario-list{margin:0;padding-left:20px;color:var(--muted);line-height:1.55}.scenario-banner{margin-bottom:16px}.score-ring{width:118px;height:118px;border-radius:999px;display:grid;place-items:center;border:12px solid #dbeafe;background:#fff;color:var(--brand);font-size:30px;font-weight:950}.score-ring.good{border-color:#bbf7d0;color:#166534}.score-ring.warn{border-color:#fde68a;color:#92400e}.score-ring.bad{border-color:#fecaca;color:#991b1b}.grade-breakdown{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.grade-chip{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid var(--line)}.grade-chip strong{display:block;color:var(--brand);font-size:18px}.answer-key-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:420px;overflow:auto}.answer-key-item{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}.answer-key-item small{display:block;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.06em}.compare-table td:nth-child(4){font-weight:900}@media(max-width:1100px){.scenario-sequence,.grade-breakdown,.answer-key-grid{grid-template-columns:1fr}}
+body.theme-dark .sequence-step, body.theme-dark .answer-key-item, body.theme-dark .grade-chip{background:rgba(12,18,30,.92);border-color:rgba(255,255,255,.12)}
+body.theme-dark .score-ring{background:rgba(12,18,30,.92)}
+
+/* ===== Final Review Before Submit (upgrade) - matches original CarrierOps styling ===== */
+.review-section{border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin-bottom:10px;background:#fff}
+.review-section summary{cursor:pointer;font-size:15px;padding:4px 0}
+.review-section summary strong{color:var(--brand)}
+.review-section table{width:100%;border-collapse:collapse}
+.review-section td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}
+.review-section td:first-child{color:var(--muted);font-weight:600}
+tr.review-missing{background:rgba(180,35,24,.06)}
+tr.review-missing td{border-bottom-color:rgba(180,35,24,.25)}
+.review-missing-text{color:var(--bad);font-weight:900;font-style:normal}
+.review-confirm{font-size:14px;line-height:1.4;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;background:#f8fafc}
+body.theme-dark .review-section,body.theme-dark .answer-key-item,body.theme-dark .grade-chip{background:rgba(255,255,255,.03)}
+body.theme-dark .review-confirm{background:rgba(255,255,255,.03)}
